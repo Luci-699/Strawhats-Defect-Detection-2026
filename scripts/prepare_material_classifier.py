@@ -20,23 +20,21 @@ def prepare_classifier(neu_dir, al_dir, wood_dir, output_dir):
     dataset = []
     
     # 1. Steel clean samples (random 300 from NEU-DET)
-    neu_images = list(neu_dir.glob('*.bmp')) + list(neu_dir.glob('*.jpg'))
+    neu_images = [p for p in neu_dir.rglob('*') if p.suffix.lower() in ['.jpg', '.png', '.bmp', '.jpeg']]
     if len(neu_images) > 300:
         neu_images = random.sample(neu_images, 300)
     for img in neu_images:
         dataset.append((img, 'steel'))
         
     # 2. Aluminum clean samples
-    al_images = list(al_dir.glob('*.*'))
-    al_images = [p for p in al_images if p.suffix.lower() in ['.jpg', '.png', '.bmp', '.jpeg']]
+    al_images = [p for p in al_dir.rglob('*') if p.suffix.lower() in ['.jpg', '.png', '.bmp', '.jpeg']]
     if len(al_images) > 300:
         al_images = random.sample(al_images, 300)
     for img in al_images:
         dataset.append((img, 'aluminum'))
         
     # 3. Wood clean samples
-    wood_images = list(wood_dir.glob('*.*'))
-    wood_images = [p for p in wood_images if p.suffix.lower() in ['.jpg', '.png', '.bmp', '.jpeg']]
+    wood_images = [p for p in wood_dir.rglob('*') if p.suffix.lower() in ['.jpg', '.png', '.bmp', '.jpeg']]
     if len(wood_images) > 300:
         wood_images = random.sample(wood_images, 300)
     for img in wood_images:
@@ -79,11 +77,14 @@ def prepare_classifier(neu_dir, al_dir, wood_dir, output_dir):
     print(f"  Test: {len(test)}")
 
 if __name__ == '__main__':
+    # Auto-detect project root from script location
+    _project_root = str(Path(__file__).resolve().parent.parent)
+    
     parser = argparse.ArgumentParser(description='Prepare material classifier dataset')
-    parser.add_argument('--neu_dir', type=str, default=r'c:\Users\mmddf\Desktop\RVCE\data\NEU-DET', help='NEU-DET data directory')
-    parser.add_argument('--al_dir', type=str, default=r'c:\Users\mmddf\Desktop\RVCE\data\Aluminum\ali2018\Clean sample', help='Aluminum clean samples directory')
-    parser.add_argument('--wood_dir', type=str, default=r'c:\Users\mmddf\Desktop\RVCE\data\Wood\dataset_wood\No_Defect', help='Wood clean samples directory')
-    parser.add_argument('--output_dir', type=str, default=r'c:\Users\mmddf\Desktop\RVCE\data\material_classifier', help='Output directory')
+    parser.add_argument('--neu_dir', type=str, default=os.path.join(_project_root, 'data', 'NEU-DET'), help='NEU-DET data directory (steel images)')
+    parser.add_argument('--al_dir', type=str, default=os.path.join(_project_root, 'data', 'Aluminum'), help='Aluminum clean samples directory')
+    parser.add_argument('--wood_dir', type=str, default=os.path.join(_project_root, 'data', 'Wood'), help='Wood clean samples directory')
+    parser.add_argument('--output_dir', type=str, default=os.path.join(_project_root, 'data', 'material_classifier'), help='Output directory')
     args = parser.parse_args()
     
     prepare_classifier(args.neu_dir, args.al_dir, args.wood_dir, args.output_dir)
