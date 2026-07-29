@@ -31,10 +31,11 @@ def main(args):
         mosaic=1.0,
         flipud=0.5,
         degrees=10.0,
-        project='runs',
-        name=run_name,
+        project=f'runs/{run_name}',
+        name='train',
         exist_ok=True
     )
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train baseline YOLOv10 model.")
