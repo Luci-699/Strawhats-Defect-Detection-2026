@@ -68,7 +68,7 @@ class YOLOv10Backbone(nn.Module):
         # Hook into a deep layer for rich semantic features
         target_layer = None
         for idx, (name, module) in enumerate(self.model.named_modules()):
-            if 'SPPF' in module.__class__.__name__ or idx == 9:
+            if module.__class__.__name__ == 'SPPF':
                 module.register_forward_hook(get_activation(f'feat_{idx}'))
                 target_layer = f'feat_{idx}'
         self.target_layer = target_layer
@@ -87,7 +87,7 @@ class YOLOv10Backbone(nn.Module):
             YOLO detections.
         """
         self.feature_maps = {}
-        return self.model(x)
+        return self.yolo(x)
         
     def get_roi_features(self, boxes: torch.Tensor, batch_idx: int = 0) -> torch.Tensor:
         """Extract ROI features for detected boxes from the intermediate feature map.
@@ -95,7 +95,7 @@ class YOLOv10Backbone(nn.Module):
         Parameters
         ----------
         boxes : torch.Tensor
-            Bounding boxes of shape (N, 4) in format (x1, y1, x2, y2).
+            Bounding boxes of shape (N, 4) in format (x1, y1, x2, y2). Expected to be normalized [0, 1].
         batch_idx : int, optional
             Batch index to extract from, by default 0
             
@@ -104,25 +104,27 @@ class YOLOv10Backbone(nn.Module):
         torch.Tensor
             Extracted features of shape (N, C), where C is feature dimension.
         """
+        import torchvision
+
         if not self.feature_maps or self.target_layer not in self.feature_maps:
             raise RuntimeError("No feature maps extracted. Run forward pass first.")
             
-        feat_map = self.feature_maps[self.target_layer][batch_idx] # Shape: (C, H, W)
-        _, H, W = feat_map.shape
+        feat_map = self.feature_maps[self.target_layer] # Shape: (B, C, H, W)
+        B, C, H, W = feat_map.shape
         
-        features = []
-        for box in boxes:
-            x1, y1, x2, y2 = box
-            # Calculate center point mapped to feature map grid (assuming relative [0,1])
-            cx = int(((x1 + x2) / 2) * W)
-            cy = int(((y1 + y2) / 2) * H)
-            cx = max(0, min(W-1, cx))
-            cy = max(0, min(H-1, cy))
+        if boxes.shape[0] == 0:
+            return torch.empty((0, C), device=feat_map.device)
             
-            feat = feat_map[:, cy, cx] # Shape (C,)
-            features.append(feat)
-            
-        if not features:
-            return torch.empty((0, feat_map.shape[0]), device=feat_map.device)
-            
-        return torch.stack(features)
+        # Scale to feature map dimensions
+        scaled_boxes = boxes.clone()
+        scaled_boxes[:, [0, 2]] *= W
+        scaled_boxes[:, [1, 3]] *= H
+        
+        # Add batch index for roi_align
+        batch_indices = torch.full((boxes.shape[0], 1), batch_idx, device=boxes.device, dtype=boxes.dtype)
+        roi_boxes = torch.cat([batch_indices, scaled_boxes], dim=1)
+        
+        # Use roi_align to pool a 1x1 region (Adaptive Average Pooling equivalent over the box)
+        roi_features = torchvision.ops.roi_align(feat_map, roi_boxes, output_size=(1, 1), spatial_scale=1.0)
+        
+        return roi_features.squeeze(-1).squeeze(-1) # Shape: (N, C)

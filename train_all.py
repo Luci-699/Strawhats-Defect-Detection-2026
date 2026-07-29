@@ -88,7 +88,7 @@ STAGE_CONFIG = {
     5: {
         "name": "Morphology Fusion",
         "script": "training/train_morphology_fusion.py",
-        "args": [],
+        "args": ["--material", "steel", "--data", "data/dataset.yaml", "--batch", "4"],
         "estimated_minutes": 300,
         "description": "Cross-attention fusion: YOLO + morphology descriptors",
     },

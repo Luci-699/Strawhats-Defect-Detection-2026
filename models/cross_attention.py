@@ -70,9 +70,11 @@ class CrossAttentionFusion(nn.Module):
             Fused features of shape (B, N, d_model + visual_dim) or (N, d_model + visual_dim).
         """
         # Ensure batch dimension exists
+        squeezed = False
         if f_visual.dim() == 2:
             f_visual = f_visual.unsqueeze(0)
             f_morph = f_morph.unsqueeze(0)
+            squeezed = True
             
         # Project inputs
         Q = self.W_Q(f_visual)  # (B, N, d_model)
@@ -88,8 +90,8 @@ class CrossAttentionFusion(nn.Module):
         # Layer normalization
         output = self.norm(fused)
         
-        # Remove batch dim if input was 2D
-        if output.size(0) == 1:
+        # Remove batch dim only if we added it
+        if squeezed:
             output = output.squeeze(0)
             
         return output

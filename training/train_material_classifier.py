@@ -37,7 +37,7 @@ def train_model(args):
                       for x in ['train', 'val', 'test']}
     
     dataloaders = {x: DataLoader(image_datasets[x], batch_size=args.batch_size,
-                                 shuffle=(x == 'train'), num_workers=4)
+                                 shuffle=(x == 'train'), num_workers=0)
                    for x in ['train', 'val', 'test']}
                    
     dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test']}
@@ -108,7 +108,7 @@ def train_model(args):
     print(f'Best val Acc: {best_acc:4f}')
     
     # Test phase
-    model.load_state_dict(torch.load(save_dir / 'best_material_classifier.pth'))
+    model.load_state_dict(torch.load(save_dir / 'best_material_classifier.pth', map_location=device))
     model.eval()
     
     all_preds = []

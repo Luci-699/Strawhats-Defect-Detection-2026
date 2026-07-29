@@ -8,11 +8,19 @@ logger = logging.getLogger(__name__)
 def compute_edt(binary_mask: np.ndarray) -> np.ndarray:
     """
     Computes the Euclidean Distance Transform of a binary mask.
+    
+    Inverts the mask so that defect regions (foreground) have D=0
+    and background has increasing distance. This ensures defects
+    get maximum attention (1.0) in the attention map.
     """
     mask = binary_mask.astype(np.uint8)
     if mask.max() == 1:
         mask = mask * 255
-    edt = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
+    # Invert: defect pixels (255) become 0, background (0) becomes 255
+    # distanceTransform computes distance from zero-valued pixels
+    # So after inversion, distance is measured FROM defect boundaries
+    inverted_mask = 255 - mask
+    edt = cv2.distanceTransform(inverted_mask, cv2.DIST_L2, 5)
     return edt
 
 def generate_attention_map(binary_mask: np.ndarray, tau: float = 10.0) -> np.ndarray:

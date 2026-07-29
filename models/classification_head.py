@@ -53,15 +53,14 @@ class MorphologyClassificationHead(nn.Module):
         Returns
         -------
         torch.Tensor
-            Softmax probabilities of shape (..., num_classes).
+            Raw logits of shape (..., num_classes).
+            NOTE: Do NOT apply softmax here — CrossEntropyLoss expects raw logits.
+            Use F.softmax() only at inference time for probabilities.
         """
         # Get raw logits
         logits = self.classifier(x)
         
-        # Apply temperature scaling
+        # Apply temperature scaling (for inference calibration)
         scaled_logits = logits / self.temperature
         
-        # Apply softmax
-        probs = F.softmax(scaled_logits, dim=-1)
-        
-        return probs
+        return scaled_logits
