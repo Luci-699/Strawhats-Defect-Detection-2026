@@ -1,0 +1,39 @@
+model:
+  backbone: yolov10s
+  num_classes: 6
+  fusion_dim: 128
+  fusion_heads: 4
+  morphology_features: 11
+  morphology_tau: 10.0
+
+training:
+  optimizer: AdamW
+  learning_rate: 0.01
+  lr_scheduler: CosineAnnealing
+  batch_size: 4
+  epochs_baseline: 150
+  epochs_fusion: 100
+  weight_decay: 0.0001
+  image_size: 640
+  alpha: 0.5  # CCE loss weight
+  lambda_morph: 0.1  # morphology consistency weight
+  early_stopping_patience: 15
+  
+dsp:
+  fir_cutoff: 0.3
+  fir_order: 5
+  matrix_norm: zscore
+
+augmentation:
+  rotation: 30
+  hflip: 0.5
+  vflip: 0.5
+  gaussian_noise_sigma: 0.02
+  brightness_contrast: 0.2
+  crop_scale: [0.8, 1.0]
+  motion_blur_kernel: [5, 15]
+
+paths:
+  dataset_yaml: data/dataset.yaml
+  baseline_weights: runs/baseline/best.pt
+  fusion_weights: runs/morphology_fusion/best.pt
