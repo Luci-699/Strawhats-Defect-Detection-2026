@@ -81,9 +81,9 @@ STAGE_CONFIG = {
     4: {
         "name": "Wood YOLO",
         "script": "training/train_yolo_baseline.py",
-        "args": ["--data", "data/dataset_wood.yaml", "--epochs", "150", "--batch", "4", "--imgsz", "640", "--name", "wood"],
+        "args": ["--data", "data/dataset_wood.yaml", "--epochs", "150", "--batch", "4", "--imgsz", "640", "--name", "wood", "--lr", "0.0001"],
         "estimated_minutes": 240,
-        "description": "YOLOv10s on Wood Defects (binary, default lr=0.01) - saves to runs/wood/",
+        "description": "YOLOv10s on Wood Defects (binary, lr=0.0001) - saves to runs/wood/",
     },
     5: {
         "name": "Morphology Fusion",
