@@ -89,10 +89,22 @@ class MorphologyFusionDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path = str(self.img_paths[idx])
-        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-        
+        try:
+            # np.fromfile handles non-ASCII/Unicode paths on Windows
+            img = cv2.imdecode(np.fromfile(img_path, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+        except Exception:
+            img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+            
+        if img is None:
+            # Fallback for missing/corrupt image: return blank image
+            img = np.zeros((self.img_size, self.img_size), dtype=np.uint8)
+            
+        # Ensure 2D grayscale
+        if img.ndim == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            
         # Resize image
-        h, w = img.shape
+        h, w = img.shape[:2]
         img_resized = cv2.resize(img, (self.img_size, self.img_size))
         
         label_path = img_path.replace('images', 'labels')

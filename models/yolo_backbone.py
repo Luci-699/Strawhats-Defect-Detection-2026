@@ -87,7 +87,7 @@ class YOLOv10Backbone(nn.Module):
             YOLO detections.
         """
         self.feature_maps = {}
-        return self.yolo(x)
+        return self.model(x)
         
     def get_roi_features(self, boxes: torch.Tensor, batch_idx: int = 0) -> torch.Tensor:
         """Extract ROI features for detected boxes from the intermediate feature map.
