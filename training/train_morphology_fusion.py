@@ -208,7 +208,7 @@ def main(args):
                        list(classifier.parameters())
                        
     optimizer = torch.optim.AdamW(trainable_params, 
-                                  lr=config['training']['learning_rate'],
+                                  lr=config['training'].get('fusion_lr', 0.0001),
                                   weight_decay=config['training']['weight_decay'])
                                   
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
@@ -309,19 +309,12 @@ def main(args):
                 # Classify
                 logits = classifier(fused)
                 
-                # Since MorphologyAwareLoss takes morph_preds, morph_targets...
-                # Actually, the loss has lambda_morph * MSE(morph_preds, morph_targets).
-                # Wait, where does morph_preds come from? The classifier?
-                # The MorphologyAwareLoss asks for morph_preds. Let's provide f_morph as morph_preds and a target?
-                # Ah! In the paper/losses.py, maybe it's MSE(f_morph, raw_morph_tensor)? But dimensions are 128 vs 11.
-                # Let's pass dummy zeros for morph_preds and morph_targets if not strictly defined,
-                # or since we are predicting classes, the primary loss is CrossEntropy.
-                
-                # Wait, looking at losses.py:
-                # l_morph = self.morph_loss(morph_preds, morph_targets)
-                # If we pass f_morph (128) and f_morph.detach(), loss is 0.
-                morph_targets = f_morph.detach()
-                morph_preds = f_morph
+                # L_morph: reconstruction consistency loss
+                # morph_preds = decode(f_morph) → reconstructed 11-dim descriptors
+                # morph_targets = raw_morph_tensor → original 11-dim descriptors
+                # MSE(reconstructed, original) gives a meaningful consistency signal
+                morph_preds = morph_encoder.decode(f_morph)   # (N, 11)
+                morph_targets = raw_morph_tensor              # (N, 11)
                 
                 loss, loss_dict = criterion(morph_preds, morph_targets, logits, gt_classes, yolo_loss=0.0)
                 loss.backward()
@@ -406,7 +399,7 @@ def main(args):
                     fused = cross_attention(f_visual, f_morph)
                     logits = classifier(fused)
                     
-                    loss, _ = criterion(f_morph, f_morph.detach(), logits, gt_classes, yolo_loss=0.0)
+                    loss, _ = criterion(morph_encoder.decode(f_morph), raw_morph_tensor, logits, gt_classes, yolo_loss=0.0)
                     val_loss += loss.item()
                     
                     preds = torch.argmax(logits, dim=1)

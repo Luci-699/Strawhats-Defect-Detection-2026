@@ -86,11 +86,25 @@ STAGE_CONFIG = {
         "description": "YOLOv10m on Wood Defects (binary, lr=0.001) - saves to runs/wood/",
     },
     5: {
-        "name": "Morphology Fusion",
+        "name": "Morphology Fusion — Steel",
         "script": "training/train_morphology_fusion.py",
         "args": ["--material", "steel", "--data", "data/dataset.yaml", "--batch", "16"],
         "estimated_minutes": 40,
-        "description": "Cross-attention fusion: YOLO + morphology descriptors",
+        "description": "Cross-attention fusion: Steel YOLO + morphology descriptors",
+    },
+    6: {
+        "name": "Morphology Fusion — Aluminum",
+        "script": "training/train_morphology_fusion.py",
+        "args": ["--material", "aluminum", "--data", "data/dataset_aluminum.yaml", "--batch", "16"],
+        "estimated_minutes": 40,
+        "description": "Cross-attention fusion: Aluminum YOLO + morphology descriptors",
+    },
+    7: {
+        "name": "Morphology Fusion — Wood",
+        "script": "training/train_morphology_fusion.py",
+        "args": ["--material", "wood", "--data", "data/dataset_wood.yaml", "--batch", "16"],
+        "estimated_minutes": 35,
+        "description": "Cross-attention fusion: Wood YOLO + morphology descriptors",
     },
 }
 
@@ -161,8 +175,9 @@ def run_stage(stage_num: int, device: str) -> bool:
     """Run a single training stage."""
     config = STAGE_CONFIG[stage_num]
     
+    total_stages = max(STAGE_CONFIG.keys())
     logger.info("=" * 60)
-    logger.info(f"STAGE {stage_num}/5: {config['name']}")
+    logger.info(f"STAGE {stage_num}/{total_stages}: {config['name']}")
     logger.info(f"Description: {config['description']}")
     logger.info(f"Estimated time: ~{config['estimated_minutes']} minutes")
     logger.info("=" * 60)

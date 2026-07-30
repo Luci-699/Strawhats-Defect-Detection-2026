@@ -8,15 +8,26 @@ class MorphologyEncoder(nn.Module):
     """
     MLP encoder to transform the 11-dimensional morphological feature vector 
     into a 128-dimensional embedding (f_morph).
+    Also contains a reconstruction head (decoder) to reconstruct the 11-dim
+    descriptor from f_morph, enabling the morphology consistency loss L_morph
+    = MSE(decode(f_morph), raw_11dim_features).
     """
     def __init__(self):
         super(MorphologyEncoder, self).__init__()
         
+        # Encoder: 11 -> 64 -> 128
         self.fc1 = nn.Linear(11, 64)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(0.2)
         self.fc2 = nn.Linear(64, 128)
         self.layernorm = nn.LayerNorm(128)
+
+        # Reconstruction decoder: 128 -> 64 -> 11
+        self.reconstruction_head = nn.Sequential(
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 11)
+        )
 
         self._init_weights()
 
@@ -50,3 +61,16 @@ class MorphologyEncoder(nn.Module):
         f_morph = self.layernorm(out)
         
         return f_morph
+
+    def decode(self, f_morph: torch.Tensor) -> torch.Tensor:
+        """
+        Reconstruct 11-dim morphological descriptors from f_morph embedding.
+        Used for the morphology consistency loss: MSE(decode(f_morph), raw_11dim).
+
+        Args:
+            f_morph (torch.Tensor): 128-dimensional embedding from forward().
+
+        Returns:
+            torch.Tensor: Reconstructed 11-dimensional descriptor.
+        """
+        return self.reconstruction_head(f_morph)
