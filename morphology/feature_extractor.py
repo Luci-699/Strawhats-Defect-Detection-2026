@@ -69,11 +69,17 @@ class MorphologicalFeatureExtractor:
 
         # 8. Eccentricity
         if len(c) >= 5:
-            cov, _ = cv2.calcCovarMatrix(c, None, cv2.COVAR_NORMAL | cv2.COVAR_ROWS | cv2.COVAR_SCALE)
-            eig_vals, _ = cv2.eigen(cov)
-            if eig_vals is not None and len(eig_vals) >= 2 and eig_vals[0] > 0:
-                features['eccentricity'] = np.sqrt(max(0, 1 - (eig_vals[1] / eig_vals[0])))
-            else:
+            try:
+                c_pts = c.reshape(-1, 2).astype(np.float32)
+                cov, _ = cv2.calcCovarMatrix(c_pts, None, cv2.COVAR_NORMAL | cv2.COVAR_ROWS | cv2.COVAR_SCALE)
+                eig_vals, _ = cv2.eigen(cov)
+                if eig_vals is not None and len(eig_vals) >= 2 and float(eig_vals[0][0]) > 0:
+                    val0 = float(eig_vals[0][0])
+                    val1 = float(eig_vals[1][0])
+                    features['eccentricity'] = float(np.sqrt(max(0, 1 - (val1 / val0))))
+                else:
+                    features['eccentricity'] = 0.0
+            except Exception:
                 features['eccentricity'] = 0.0
         else:
             features['eccentricity'] = 0.0
