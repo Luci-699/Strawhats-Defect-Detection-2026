@@ -6,7 +6,7 @@ def main(args):
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
         
-    model_name = config['model']['backbone'] + '.pt'
+    model_name = args.model if args.model else config['model']['backbone'] + '.pt'
     if args.resume:
         model = YOLO(config['paths']['baseline_weights'])
     else:
@@ -42,6 +42,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, default='training/config.yaml', help='Path to config file.')
     parser.add_argument('--data', type=str, default=None, help='Path to dataset.yaml.')
     parser.add_argument('--epochs', type=int, default=None, help='Number of epochs.')
+    parser.add_argument('--model', type=str, default=None, help='YOLO model variant (e.g. yolov10m.pt, yolov10l.pt).')
     parser.add_argument('--device', type=str, default='cuda', help='Device to use (cpu or cuda).')
     parser.add_argument('--batch', type=int, default=None, help='Batch size.')
     parser.add_argument('--imgsz', type=int, default=None, help='Image size.')

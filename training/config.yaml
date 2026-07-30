@@ -1,5 +1,5 @@
 model:
-  backbone: yolov10s
+  backbone: yolov10m
   num_classes: 6
   fusion_dim: 128
   fusion_heads: 4
@@ -10,7 +10,7 @@ training:
   optimizer: AdamW
   learning_rate: 0.01
   lr_scheduler: CosineAnnealing
-  batch_size: 4
+  batch_size: 16
   epochs_baseline: 150
   epochs_fusion: 100
   weight_decay: 0.0001
