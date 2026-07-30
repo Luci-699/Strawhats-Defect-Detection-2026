@@ -33,6 +33,7 @@ def main(args):
         degrees=10.0,
         project=f'runs/{run_name}',
         name='train',
+        workers=2,
         exist_ok=True
     )
 
