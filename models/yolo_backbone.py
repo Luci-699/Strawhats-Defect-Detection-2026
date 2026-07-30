@@ -21,25 +21,9 @@ class YOLOv10Backbone(nn.Module):
             Path to pretrained YOLOv10 weights, by default 'yolov10n.pt'
         """
         super().__init__()
-        # Load YOLO model cleanly without triggering Ultralytics trainer engine
+        # Load YOLO model cleanly from the given weights path
         import os
-        if os.path.exists(pretrained_weights) and pretrained_weights != 'yolov10n.pt':
-            self.yolo = YOLO('yolov10n.pt')
-            try:
-                ckpt = torch.load(pretrained_weights, map_location='cpu')
-                if 'model' in ckpt:
-                    model_obj = ckpt['model']
-                    if hasattr(model_obj, 'state_dict'):
-                        self.yolo.model.load_state_dict(model_obj.state_dict(), strict=False)
-                    elif isinstance(model_obj, dict):
-                        self.yolo.model.load_state_dict(model_obj, strict=False)
-                elif 'state_dict' in ckpt:
-                    self.yolo.model.load_state_dict(ckpt['state_dict'], strict=False)
-            except Exception as e:
-                print(f"[WARN] Failed to load custom state_dict from {pretrained_weights}: {e}")
-        else:
-            self.yolo = YOLO(pretrained_weights)
-            
+        self.yolo = YOLO(pretrained_weights)
         self.model = self.yolo.model
         
         # Modify the first convolutional layer for 2-channel input

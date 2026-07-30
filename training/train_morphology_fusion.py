@@ -184,7 +184,16 @@ def main(args):
     backbone.eval()
         
     num_classes = train_dataset.nc
-    visual_dim = 256 # Assume 256 based on morphology_yolo.py
+    
+    # Dynamically determine visual_dim from backbone
+    with torch.no_grad():
+        dummy_img = torch.zeros((1, 2, img_size, img_size), device=device)
+        _ = backbone(dummy_img)
+        dummy_box = torch.tensor([[0.1, 0.1, 0.5, 0.5]], device=device)
+        dummy_feat = backbone.get_roi_features(dummy_box)
+        visual_dim = dummy_feat.shape[-1]
+    print(f"Extracted backbone visual feature dimension: {visual_dim}")
+    
     morph_dim = 128
     
     morph_encoder = MorphologyEncoder().to(device)
