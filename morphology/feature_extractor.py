@@ -25,6 +25,10 @@ class MorphologicalFeatureExtractor:
             logger.warning("Empty mask or no defects found.")
             return self._empty_features()
 
+        # Ensure uint8 for OpenCV contour/threshold ops
+        if binary_mask.dtype != np.uint8:
+            binary_mask = binary_mask.astype(np.uint8)
+
         # Find contours
         contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
@@ -61,22 +65,24 @@ class MorphologicalFeatureExtractor:
         
         # 7. Compactness
         if len(c) >= 5:
-            ellipse = cv2.fitEllipse(c)
-            major_axis = max(ellipse[1][0], ellipse[1][1])
-            features['compactness'] = area / (np.pi * (major_axis / 2) ** 2) if major_axis > 0 else 0.0
+            try:
+                ellipse = cv2.fitEllipse(c)
+                major_axis = max(ellipse[1][0], ellipse[1][1])
+                features['compactness'] = area / (np.pi * (major_axis / 2) ** 2) if major_axis > 0 else 0.0
+            except cv2.error:
+                features['compactness'] = 0.0
         else:
             features['compactness'] = 0.0
 
-        # 8. Eccentricity
+        # 8. Eccentricity — use numpy covariance (cv2.calcCovarMatrix crashes on OpenCV 5.0)
         if len(c) >= 5:
             try:
-                c_pts = c.reshape(-1, 2).astype(np.float32)
-                cov, _ = cv2.calcCovarMatrix(c_pts, None, cv2.COVAR_NORMAL | cv2.COVAR_ROWS | cv2.COVAR_SCALE)
-                eig_vals, _ = cv2.eigen(cov)
-                if eig_vals is not None and len(eig_vals) >= 2 and float(eig_vals[0][0]) > 0:
-                    val0 = float(eig_vals[0][0])
-                    val1 = float(eig_vals[1][0])
-                    features['eccentricity'] = float(np.sqrt(max(0, 1 - (val1 / val0))))
+                c_pts = c.reshape(-1, 2).astype(np.float64)
+                cov_mat = np.cov(c_pts, rowvar=False)
+                eig_vals = np.linalg.eigvalsh(cov_mat)
+                eig_vals = np.sort(eig_vals)[::-1]  # descending
+                if eig_vals[0] > 0:
+                    features['eccentricity'] = float(np.sqrt(max(0, 1 - (eig_vals[1] / eig_vals[0]))))
                 else:
                     features['eccentricity'] = 0.0
             except Exception:
@@ -140,9 +146,12 @@ class MorphologicalFeatureExtractor:
     def to_tensor(self, features: Union[Dict[str, float], np.ndarray]) -> torch.Tensor:
         """
         Converts the feature dictionary or array to a torch.Tensor.
+        NaN/Inf values are replaced with 0.0 to prevent training instability.
         """
         if isinstance(features, dict):
             arr = np.array(list(features.values()), dtype=np.float32)
         else:
-            arr = features
+            arr = np.asarray(features, dtype=np.float32)
+        arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
         return torch.tensor(arr, dtype=torch.float32)
+
