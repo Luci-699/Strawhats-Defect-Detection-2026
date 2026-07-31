@@ -39,7 +39,8 @@ def main(args):
     if 'path' in ds_yaml:
         original_path = ds_yaml['path']
         if not Path(original_path).is_absolute():
-            resolved_path = (Path(data_yaml_path).parent / original_path).resolve()
+            # Must resolve data_yaml_path to absolute first, so the resulting path is absolute!
+            resolved_path = (Path(data_yaml_path).resolve().parent / original_path).resolve()
             ds_yaml['path'] = str(resolved_path).replace('\\', '/')
             with open(data_yaml_path, 'w') as f:
                 yaml.dump(ds_yaml, f, sort_keys=False)
