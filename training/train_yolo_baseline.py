@@ -19,11 +19,13 @@ def main(args):
     run_name = args.name if args.name else 'baseline'
     
     # Auto-clean any stale Ultralytics dataset cache files (*.cache)
+    if sys.platform == 'win32':
+        os.system('del /f /q /s data\\*.cache >nul 2>&1')
     for cache_file in Path("data").rglob("*.cache"):
         try:
             os.remove(cache_file)
             print(f"Removed stale cache: {cache_file}")
-        except Exception as e:
+        except Exception:
             pass
 
     data_yaml_path = args.data if args.data else config['paths']['dataset_yaml']
