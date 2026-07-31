@@ -36,12 +36,13 @@ def main(args):
     with open(data_yaml_path, 'r') as f:
         ds_yaml = yaml.safe_load(f)
     
-    # Force absolute path to avoid YOLO reading from old C:\Users\Hp\... directories
-    # If the yaml has 'path', update it to the absolute path of the processed directory.
-    # We assume data_yaml_path is 'data/dataset.yaml' or similar, so project root is its parent.parent
-    ds_yaml['path'] = str(Path(data_yaml_path).parent.parent / "data" / "processed" / "steel").replace('\\', '/')
-    with open(data_yaml_path, 'w') as f:
-        yaml.dump(ds_yaml, f, sort_keys=False)
+    if 'path' in ds_yaml:
+        original_path = ds_yaml['path']
+        if not Path(original_path).is_absolute():
+            resolved_path = (Path(data_yaml_path).parent / original_path).resolve()
+            ds_yaml['path'] = str(resolved_path).replace('\\', '/')
+            with open(data_yaml_path, 'w') as f:
+                yaml.dump(ds_yaml, f, sort_keys=False)
 
     model.train(
         data=data_yaml_path,
