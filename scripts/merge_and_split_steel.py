@@ -111,6 +111,14 @@ def write_splits(splits: dict, dry_run: bool = True) -> None:
             out_img.mkdir(parents=True, exist_ok=True)
             out_lbl.mkdir(parents=True, exist_ok=True)
 
+        # Delete any leftover Ultralytics cache files in OUTPUT_DIR and parent
+        if not dry_run and OUTPUT_DIR.exists():
+            for cache in OUTPUT_DIR.rglob("*.cache"):
+                try:
+                    cache.unlink()
+                except Exception:
+                    pass
+
         logger.info(f"  {split_name}: {len(pairs)} images {'(would write)' if dry_run else '(writing...)'}")
 
         if not dry_run:

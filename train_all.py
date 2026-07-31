@@ -184,6 +184,16 @@ def run_stage(stage_num: int, device: str) -> bool:
     
     start_time = time.time()
     
+    # Purge any stale Ultralytics .cache files before YOLO stages
+    if stage_num in (2, 3, 4):
+        if sys.platform == 'win32':
+            os.system('del /f /q /s data\\*.cache >nul 2>&1')
+        for c in PROJECT_ROOT.glob("data/**/*.cache"):
+            try:
+                c.unlink()
+            except Exception:
+                pass
+    
     # Build command
     cmd = [sys.executable, config["script"]] + config["args"]
     
