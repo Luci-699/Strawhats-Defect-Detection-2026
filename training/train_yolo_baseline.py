@@ -49,7 +49,7 @@ def main(args):
         project='runs',
         name=run_name,
         workers=2,
-        cache=True,
+        cache='disk',
         exist_ok=True
     )
 
