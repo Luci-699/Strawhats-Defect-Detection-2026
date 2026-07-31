@@ -16,7 +16,7 @@ def main(args):
         model = YOLO(model_name)
     
     epochs = args.epochs if args.epochs else config['training']['epochs_baseline']
-    lr = args.lr if args.lr else float(config['training']['learning_rate'])
+    lr = args.lr if args.lr else 0.005
     run_name = args.name if args.name else 'baseline'
     
     # Auto-clean any stale Ultralytics dataset cache files (*.cache)
@@ -53,6 +53,7 @@ def main(args):
         device=args.device,
         optimizer=config['training']['optimizer'],
         lr0=float(lr),
+        lrf=0.01,
         weight_decay=float(config['training']['weight_decay']),
         cos_lr=True,
         patience=20,
