@@ -62,7 +62,7 @@ def main(args):
         degrees=10.0,
         project='runs',
         name=run_name,
-        workers=2,
+        workers=4,
         cache='disk',
         exist_ok=True
     )
