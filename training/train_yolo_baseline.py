@@ -31,6 +31,19 @@ def main(args):
 
     data_yaml_path = args.data if args.data else config['paths']['dataset_yaml']
 
+    # CRITICAL FIX: Ultralytics resolves relative paths against its global settings.yaml
+    # We must overwrite dataset.yaml to use the absolute path of the current project directory!
+    import yaml
+    with open(data_yaml_path, 'r') as f:
+        ds_yaml = yaml.safe_load(f)
+    
+    # Force absolute path to avoid YOLO reading from old C:\Users\Hp\... directories
+    # If the yaml has 'path', update it to the absolute path of the processed directory.
+    # We assume data_yaml_path is 'data/dataset.yaml' or similar, so project root is its parent.parent
+    ds_yaml['path'] = str(Path(data_yaml_path).parent.parent / "data" / "processed" / "steel").replace('\\', '/')
+    with open(data_yaml_path, 'w') as f:
+        yaml.dump(ds_yaml, f, sort_keys=False)
+
     model.train(
         data=data_yaml_path,
         epochs=epochs,
