@@ -20,6 +20,7 @@ import argparse
 import logging
 import shutil
 import random
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -166,6 +167,12 @@ def main():
     # Collect from both sources
     logger.info("\n[1/3] Collecting image-label pairs...")
     severstal_pairs = collect_pairs(args.severstal_dir)
+    if not severstal_pairs:
+        logger.info("  Severstal processed data not found in data/processed/severstal. Processing now...")
+        import subprocess
+        subprocess.run([sys.executable, "scripts/download_severstal.py"], check=False)
+        severstal_pairs = collect_pairs(args.severstal_dir)
+
     neu_det_pairs   = collect_pairs(args.neu_det_dir)
     all_pairs = severstal_pairs + neu_det_pairs
 
