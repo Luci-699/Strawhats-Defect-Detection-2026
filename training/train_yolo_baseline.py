@@ -19,20 +19,14 @@ def main(args):
     run_name = args.name if args.name else 'baseline'
     
     # Auto-clean any stale Ultralytics dataset cache files (*.cache)
+    for cache_file in Path("data").rglob("*.cache"):
+        try:
+            os.remove(cache_file)
+            print(f"Removed stale cache: {cache_file}")
+        except Exception as e:
+            pass
+
     data_yaml_path = args.data if args.data else config['paths']['dataset_yaml']
-    if data_yaml_path and os.path.exists(data_yaml_path):
-        with open(data_yaml_path, 'r') as f:
-            d_conf = yaml.safe_load(f)
-        d_path = d_conf.get('path', '')
-        if d_path:
-            if not os.path.isabs(d_path):
-                d_path = os.path.join(os.path.dirname(data_yaml_path), d_path)
-            for cache_file in Path(d_path).rglob("*.cache"):
-                try:
-                    os.remove(cache_file)
-                    print(f"Removed stale cache: {cache_file}")
-                except Exception:
-                    pass
 
     model.train(
         data=data_yaml_path,
