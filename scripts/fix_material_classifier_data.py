@@ -105,7 +105,7 @@ def verify_current_state():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Fix material classifier dataset — populate steel and aluminum folders"
+        description="Populate/refresh material_classifier dataset for all 3 classes"
     )
     parser.add_argument("--apply", action="store_true",
                         help="Actually copy files (default: dry run)")
@@ -115,6 +115,13 @@ def main():
                         help=f"Images per class for val (default: {VAL_COUNT})")
     args = parser.parse_args()
 
+    # ── Apply CLI overrides to module-level globals used by sample_and_copy ──
+    global TRAIN_COUNT, VAL_COUNT, TEST_COUNT, TOTAL
+    TRAIN_COUNT = args.train_count
+    VAL_COUNT   = args.val_count
+    TEST_COUNT  = args.val_count   # keep test == val for symmetry
+    TOTAL       = TRAIN_COUNT + VAL_COUNT + TEST_COUNT
+
     dry_run = not args.apply
 
     if dry_run:
@@ -123,12 +130,12 @@ def main():
         logger.info("=" * 60)
     else:
         logger.info("=" * 60)
-        logger.info("FIXING material_classifier dataset...")
+        logger.info(f"FIXING material_classifier — {TRAIN_COUNT} train / {VAL_COUNT} val / {TEST_COUNT} test per class")
         logger.info("=" * 60)
 
     verify_current_state()
 
-    logger.info("\n[Fixing] Sampling steel and aluminum images...")
+    logger.info("\n[Fixing] Sampling all 3 material classes...")
     all_ok = True
     for material, source_dir in SOURCES.items():
         ok = sample_and_copy(material, source_dir, dry_run)
@@ -142,11 +149,10 @@ def main():
     logger.info("\n" + "=" * 60)
     logger.info("SUMMARY")
     logger.info("=" * 60)
-    logger.info(f"  Steel images copied:    {TRAIN_COUNT} train / {VAL_COUNT} val / {TEST_COUNT} test")
-    logger.info(f"  Aluminum images copied: {TRAIN_COUNT} train / {VAL_COUNT} val / {TEST_COUNT} test")
-    logger.info(f"  Wood images:            210 train / 45 val / 45 test (already present ✅)")
-    logger.info(f"  Total per class:        {TOTAL}")
-    logger.info(f"  Total dataset:          {TOTAL * 3} images across 3 classes")
+    for mat in SOURCES:
+        logger.info(f"  {mat.capitalize():10s}: {TRAIN_COUNT} train / {VAL_COUNT} val / {TEST_COUNT} test")
+    logger.info(f"  Total per class:   {TOTAL}")
+    logger.info(f"  Grand total:       {TOTAL * len(SOURCES)} images across {len(SOURCES)} classes")
 
     if dry_run:
         logger.info("\n  Run with --apply to actually fix the dataset!")
@@ -160,3 +166,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
