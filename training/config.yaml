@@ -36,7 +36,7 @@ augmentation:
 
 paths:
   dataset_yaml: data/dataset.yaml
-  steel_weights: runs/detect/runs/steel/train/weights/best.pt
-  aluminum_weights: runs/detect/runs/aluminum/train/weights/best.pt
-  wood_weights: runs/detect/runs/wood/train/weights/best.pt
+  steel_weights: runs/steel/train/weights/best.pt
+  aluminum_weights: runs/aluminum/train/weights/best.pt
+  wood_weights: runs/wood/train/weights/best.pt
   fusion_weights: runs/morphology_fusion/best.pt

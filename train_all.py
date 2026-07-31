@@ -242,11 +242,11 @@ Examples:
     if args.stages:
         stages = sorted(args.stages)
     else:
-        stages = [1, 2, 3, 4, 5]
+        stages = [1, 2, 3, 4, 5, 6, 7]
         if args.skip_material:
             stages.remove(1)
         if args.skip_fusion:
-            stages.remove(5)
+            stages = [s for s in stages if s not in (5, 6, 7)]
     
     # Pre-flight checks
     logger.info("[PRE-FLIGHT] Checking GPU...")
