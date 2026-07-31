@@ -104,6 +104,8 @@ def verify_current_state():
 
 
 def main():
+    global TRAIN_COUNT, VAL_COUNT, TEST_COUNT, TOTAL
+
     parser = argparse.ArgumentParser(
         description="Populate/refresh material_classifier dataset for all 3 classes"
     )
@@ -116,7 +118,6 @@ def main():
     args = parser.parse_args()
 
     # ── Apply CLI overrides to module-level globals used by sample_and_copy ──
-    global TRAIN_COUNT, VAL_COUNT, TEST_COUNT, TOTAL
     TRAIN_COUNT = args.train_count
     VAL_COUNT   = args.val_count
     TEST_COUNT  = args.val_count   # keep test == val for symmetry
