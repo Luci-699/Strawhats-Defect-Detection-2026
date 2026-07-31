@@ -31,14 +31,28 @@ GC10_CLASSES = {
 }
 
 # Also handle variant spellings found in the dataset
+# INCLUDING Chinese pinyin names used in the Kaggle version!
 GC10_ALIASES = {
-    'weldline': 'weld_line',
-    'crescentgap': 'crescent_gap',
-    'waterspot': 'water_spot',
-    'oilspot': 'oil_spot',
-    'silkspot': 'silk_spot',
-    'rolledpit': 'rolled_pit',
+    # English variants
+    'weldline':     'weld_line',
+    'crescentgap':  'crescent_gap',
+    'waterspot':    'water_spot',
+    'oilspot':      'oil_spot',
+    'silkspot':     'silk_spot',
+    'rolledpit':    'rolled_pit',
     'waistfolding': 'waist_folding',
+    # Chinese pinyin numbered names (Kaggle version)
+    '1_chongkong':  'punching',      # 冲孔 = punching holes
+    '2_hanfeng':    'weld_line',     # 焊缝 = weld seam
+    '3_yueyawan':   'crescent_gap',  # 月牙弯 = crescent gap
+    '4_shuiban':    'water_spot',    # 水斑 = water spot
+    '5_youban':     'oil_spot',      # 油斑 = oil spot
+    '6_siban':      'silk_spot',     # 丝斑 = silk spot
+    '7_yiwu':       'inclusion',     # 异物 = foreign object/inclusion
+    '8_yahen':      'rolled_pit',    # 压痕 = press mark
+    '9_zhehen':     'crease',        # 褶痕 = crease/fold mark
+    '10_yaozhe':    'waist_folding', # 腰折 = waist folding
+    '10_yaozhed':   'waist_folding', # variant spelling
 }
 
 ALL_CLASSES = [
@@ -62,14 +76,23 @@ ALL_CLASSES = [
 
 def download_gc10det(output_dir: Path):
     """Download GC10-DET from Kaggle."""
+    raw_dir = output_dir / 'gc10det'
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Check if already downloaded/extracted
+    existing_xmls = list(raw_dir.rglob('*.xml'))
+    if len(existing_xmls) > 0:
+        print(f"✅ Found {len(existing_xmls)} existing XML annotations in {raw_dir}")
+        return raw_dir
+        
     print("📦 Downloading GC10-DET from Kaggle...")
     print("   Dataset: alex000kim/gc10det")
     
-    raw_dir = output_dir / 'raw' / 'gc10det'
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    
-    ret = os.system(f'kaggle datasets download -d alex000kim/gc10det --path "{raw_dir}" --unzip')
+    ret = os.system(f'python -m kaggle datasets download -d alex000kim/gc10det --path "{raw_dir}" --unzip')
     if ret != 0:
+        ret = os.system(f'kaggle datasets download -d alex000kim/gc10det --path "{raw_dir}" --unzip')
+        
+    if ret != 0 and len(list(raw_dir.rglob('*.xml'))) == 0:
         print("\n❌ Kaggle download failed. Try manually:")
         print("   1. Go to https://www.kaggle.com/datasets/alex000kim/gc10det")
         print("   2. Download and extract to:", raw_dir)
@@ -211,6 +234,8 @@ def save_class_map(out_dir: Path):
 
 
 def main():
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
     project_root = Path(__file__).parent.parent
     raw_dir = project_root / 'data' / 'raw'
     gc10_out = project_root / 'data' / 'gc10det_converted'

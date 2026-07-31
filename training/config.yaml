@@ -1,6 +1,6 @@
 model:
   backbone: yolov10m
-  num_classes: 6
+  num_classes: 15
   fusion_dim: 128
   fusion_heads: 4
   morphology_features: 11
@@ -8,7 +8,7 @@ model:
 
 training:
   optimizer: AdamW
-  learning_rate: 0.01      # YOLO baseline stages 2/3/4
+  learning_rate: 0.005     # YOLO baseline stages 2/3/4 (halved for batch=8)
   fusion_lr: 0.0001        # Stage 5 morphology fusion AdamW (much lower for stability)
   lr_scheduler: CosineAnnealing
   batch_size: 8
@@ -35,7 +35,7 @@ augmentation:
   motion_blur_kernel: [5, 15]
 
 paths:
-  dataset_yaml: data/dataset.yaml
+  dataset_yaml: data/processed/steel_unified/dataset.yaml
   steel_weights: runs/steel/train/weights/best.pt
   aluminum_weights: runs/aluminum/train/weights/best.pt
   wood_weights: runs/wood/train/weights/best.pt

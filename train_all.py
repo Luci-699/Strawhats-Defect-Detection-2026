@@ -67,9 +67,9 @@ STAGE_CONFIG = {
     2: {
         "name": "Steel YOLO",
         "script": "training/train_yolo_baseline.py",
-        "args": ["--data", "data/dataset.yaml", "--epochs", "50", "--batch", "8", "--imgsz", "640", "--name", "steel"],
+        "args": ["--data", "data/processed/steel_unified/dataset.yaml", "--epochs", "50", "--batch", "8", "--imgsz", "640", "--name", "steel"],
         "estimated_minutes": 45,
-        "description": "YOLOv10m on NEU-DET (6 defect classes) - saves to runs/steel/",
+        "description": "YOLOv10m on Unified Steel (15 defect classes) - saves to runs/steel/",
     },
     3: {
         "name": "Aluminum YOLO",
@@ -81,14 +81,14 @@ STAGE_CONFIG = {
     4: {
         "name": "Wood YOLO",
         "script": "training/train_yolo_baseline.py",
-        "args": ["--data", "data/dataset_wood.yaml", "--epochs", "50", "--batch", "8", "--imgsz", "640", "--name", "wood", "--lr", "0.001"],
+        "args": ["--data", "data/dataset_wood_10class.yaml", "--epochs", "50", "--batch", "8", "--imgsz", "640", "--name", "wood", "--lr", "0.001"],
         "estimated_minutes": 35,
-        "description": "YOLOv10m on Wood Defects (binary, lr=0.001) - saves to runs/wood/",
+        "description": "YOLOv10m on Wood Defects (10 classes, lr=0.001) - saves to runs/wood/",
     },
     5: {
         "name": "Morphology Fusion — Steel",
         "script": "training/train_morphology_fusion.py",
-        "args": ["--material", "steel", "--data", "data/dataset.yaml", "--batch", "8"],
+        "args": ["--material", "steel", "--data", "data/processed/steel_unified/dataset.yaml", "--batch", "8"],
         "estimated_minutes": 40,
         "description": "Cross-attention fusion: Steel YOLO + morphology descriptors",
     },
@@ -102,7 +102,7 @@ STAGE_CONFIG = {
     7: {
         "name": "Morphology Fusion — Wood",
         "script": "training/train_morphology_fusion.py",
-        "args": ["--material", "wood", "--data", "data/dataset_wood.yaml", "--batch", "8"],
+        "args": ["--material", "wood", "--data", "data/dataset_wood_10class.yaml", "--batch", "8"],
         "estimated_minutes": 35,
         "description": "Cross-attention fusion: Wood YOLO + morphology descriptors",
     },

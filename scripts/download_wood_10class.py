@@ -106,53 +106,44 @@ def detect_label_format(raw_dir: Path):
         return 'unknown'
 
 
-def convert_yolo_wood(raw_dir: Path, out_dir: Path):
+def convert_yolo_wood(raw_dir: Path, out_dir: Path, max_train: int = 4000, max_val: int = 600, max_test: int = 600):
     """
-    If already in YOLO format (e.g., from Roboflow), just copy and remap class IDs.
+    Copy a balanced, high-speed subset of Roboflow train/valid/test splits into output processed directory.
+    Caps: 4,000 train, 600 val, 600 test (5,200 total images).
     """
-    print("\n🔄 Converting Wood dataset to standard format...")
+    import random
+    random.seed(42)
+    print(f"\n🔄 Organizing Wood dataset into train/val/test splits (capped at ~3,900 total images for high-speed training)...")
     
-    images_out = out_dir / 'images'
-    labels_out = out_dir / 'labels'
-    images_out.mkdir(parents=True, exist_ok=True)
-    labels_out.mkdir(parents=True, exist_ok=True)
+    split_map = {'train': ('train', max_train), 'valid': ('val', max_val), 'val': ('val', max_val), 'test': ('test', max_test)}
     
-    # Find all image files
-    img_files = []
-    for ext in ['*.jpg', '*.jpeg', '*.png']:
-        img_files.extend(list(raw_dir.rglob(ext)))
-    
-    print(f"   Found {len(img_files)} images")
-    converted = 0
-    
-    for img_path in tqdm(img_files, desc="Processing"):
-        # Find corresponding label
-        label_path = img_path.parent.parent / 'labels' / (img_path.stem + '.txt')
-        if not label_path.exists():
-            label_path = img_path.with_suffix('.txt')
-        if not label_path.exists():
-            label_candidates = list(raw_dir.rglob(f'labels/{img_path.stem}.txt'))
-            if label_candidates:
-                label_path = label_candidates[0]
-            else:
-                continue
+    total_imgs = 0
+    for roboflow_name, (yolo_name, cap_limit) in split_map.items():
+        sub_img = raw_dir / roboflow_name / 'images'
+        sub_lbl = raw_dir / roboflow_name / 'labels'
         
-        # Copy image
-        dest_img = images_out / img_path.name
-        shutil.copy2(img_path, dest_img)
+        if not sub_img.exists():
+            continue
+            
+        dest_img_dir = out_dir / yolo_name / 'images'
+        dest_lbl_dir = out_dir / yolo_name / 'labels'
+        dest_img_dir.mkdir(parents=True, exist_ok=True)
+        dest_lbl_dir.mkdir(parents=True, exist_ok=True)
         
-        # Copy/process label (YOLO format — class_id x y w h)
-        dest_label = labels_out / (img_path.stem + '.txt')
-        with open(label_path, 'r') as f:
-            lines = f.readlines()
-        
-        with open(dest_label, 'w') as f:
-            f.writelines(lines)  # Keep as-is if already YOLO format
-        
-        converted += 1
-    
-    print(f"✅ Processed {converted} images")
-    return converted
+        img_files = [p for p in sub_img.glob('*') if p.suffix.lower() in ('.jpg', '.jpeg', '.png')]
+        if len(img_files) > cap_limit:
+            img_files = random.sample(img_files, cap_limit)
+            
+        for img_path in tqdm(img_files, desc=f"Split {yolo_name} ({len(img_files)} imgs)"):
+            lbl_path = sub_lbl / (img_path.stem + '.txt')
+            
+            shutil.copy2(img_path, dest_img_dir / img_path.name)
+            if lbl_path.exists():
+                shutil.copy2(lbl_path, dest_lbl_dir / lbl_path.name)
+            total_imgs += 1
+            
+    print(f"✅ Organised {total_imgs} images into {out_dir}")
+    return total_imgs
 
 
 def create_wood_dataset_yaml(out_dir: Path, project_root: Path):
@@ -182,7 +173,7 @@ names: {WOOD_CLASSES}
 """
     
     yaml_path = project_root / 'data' / 'dataset_wood_10class.yaml'
-    with open(yaml_path, 'w') as f:
+    with open(yaml_path, 'w', encoding='utf-8') as f:
         f.write(yaml_content)
     
     print(f"\n✅ Created: {yaml_path}")
@@ -214,6 +205,8 @@ Expected accuracy improvement: +15-20% vs binary wood.
 
 
 def main():
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
     import argparse
     parser = argparse.ArgumentParser(description="Download and convert 10-class wood defect dataset")
     parser.add_argument('--convert', type=str, default=None,
@@ -230,7 +223,7 @@ def main():
     if args.convert:
         # Convert existing download
         raw_dir = Path(args.convert)
-        out_dir = project_root / 'data' / 'wood_10class_converted'
+        out_dir = project_root / 'data' / 'processed' / 'wood_10class'
         
         fmt = detect_label_format(raw_dir)
         print(f"\n📋 Detected label format: {fmt}")

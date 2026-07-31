@@ -11,6 +11,7 @@ Prerequisites:
 """
 
 import os
+import sys
 import shutil
 import random
 from pathlib import Path
@@ -143,10 +144,14 @@ def print_stats(train, val, test):
 
 
 def main():
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
     project_root = Path(__file__).parent.parent
     
     # Input directories
-    neu_det_dir  = project_root / 'data' / 'processed' / 'steel'
+    neu_det_dir  = project_root / 'data' / 'processed' / 'neu-det'
+    if not neu_det_dir.exists():
+        neu_det_dir = project_root / 'data' / 'processed' / 'steel'
     gc10_dir     = project_root / 'data' / 'gc10det_converted'
     
     # Output directory
@@ -159,7 +164,7 @@ def main():
     # Check inputs exist
     if not neu_det_dir.exists():
         print(f"❌ NEU-DET processed dir not found: {neu_det_dir}")
-        print("   Run download_neu_det.py and split_dataset.py first")
+        print("   Run convert_annotations.py first")
         return
     
     if not gc10_dir.exists():
@@ -170,13 +175,18 @@ def main():
     # Collect all samples from both sources
     print("\n📂 Collecting NEU-DET samples...")
     neu_samples = []
-    for split in ['train', 'val', 'test']:
-        split_img_dir = neu_det_dir / split / 'images'
-        split_lbl_dir = neu_det_dir / split / 'labels'
-        if split_img_dir.exists():
-            samples = collect_samples(split_img_dir, split_lbl_dir)
-            neu_samples.extend(samples)
-            print(f"   {split}: {len(samples)} images")
+    # Try flat images/labels structure
+    if (neu_det_dir / 'images').exists():
+        neu_samples = collect_samples(neu_det_dir / 'images', neu_det_dir / 'labels')
+        print(f"   Flat structure: {len(neu_samples)} images")
+    else:
+        for split in ['train', 'val', 'test']:
+            split_img_dir = neu_det_dir / split / 'images'
+            split_lbl_dir = neu_det_dir / split / 'labels'
+            if split_img_dir.exists():
+                samples = collect_samples(split_img_dir, split_lbl_dir)
+                neu_samples.extend(samples)
+                print(f"   {split}: {len(samples)} images")
     
     print(f"\n📂 Collecting GC10-DET samples...")
     gc10_samples = collect_samples(
