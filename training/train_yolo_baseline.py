@@ -16,8 +16,24 @@ def main(args):
     lr = args.lr if args.lr else float(config['training']['learning_rate'])
     run_name = args.name if args.name else 'baseline'
     
+    # Auto-clean any stale Ultralytics dataset cache files (*.cache)
+    data_yaml_path = args.data if args.data else config['paths']['dataset_yaml']
+    if data_yaml_path and os.path.exists(data_yaml_path):
+        with open(data_yaml_path, 'r') as f:
+            d_conf = yaml.safe_load(f)
+        d_path = d_conf.get('path', '')
+        if d_path:
+            if not os.path.isabs(d_path):
+                d_path = os.path.join(os.path.dirname(data_yaml_path), d_path)
+            for cache_file in Path(d_path).rglob("*.cache"):
+                try:
+                    os.remove(cache_file)
+                    print(f"Removed stale cache: {cache_file}")
+                except Exception:
+                    pass
+
     model.train(
-        data=args.data if args.data else config['paths']['dataset_yaml'],
+        data=data_yaml_path,
         epochs=epochs,
         imgsz=args.imgsz if args.imgsz else config['training']['image_size'],
         batch=args.batch if args.batch else config['training']['batch_size'],
@@ -31,8 +47,8 @@ def main(args):
         mosaic=1.0,
         flipud=0.5,
         degrees=10.0,
-        project=f'runs/{run_name}',
-        name='train',
+        project='runs',
+        name=run_name,
         workers=2,
         exist_ok=True
     )

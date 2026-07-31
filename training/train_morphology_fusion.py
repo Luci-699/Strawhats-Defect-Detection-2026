@@ -154,7 +154,7 @@ def main(args):
     batch_size = args.batch if args.batch else config['training']['batch_size']
     img_size = config['training']['image_size']
     
-    # Determine weights
+    # Determine weights with automatic fallback search
     if args.material == 'steel':
         weights_path = config['paths']['steel_weights']
     elif args.material == 'aluminum':
@@ -164,7 +164,29 @@ def main(args):
     else:
         raise ValueError(f"Unknown material: {args.material}")
         
-    dataset_yaml = args.data if args.data else config['paths']['dataset_yaml']
+    if not os.path.exists(weights_path):
+        # Fallback candidates
+        candidates = [
+            f"runs/{args.material}/weights/best.pt",
+            f"runs/{args.material}/train/weights/best.pt",
+            f"runs/detect/runs/{args.material}/train/weights/best.pt",
+            f"runs/detect/{args.material}/weights/best.pt",
+        ]
+        found = False
+        for cand in candidates:
+            if os.path.exists(cand):
+                weights_path = cand
+                found = True
+                break
+        if not found:
+            # Search anywhere in runs/ for matching best.pt
+            matches = list(Path("runs").rglob(f"*{args.material}*/best.pt"))
+            if matches:
+                weights_path = str(matches[0])
+                found = True
+        if not found:
+            print(f"WARNING: Best weights for {args.material} not found at {weights_path}, using default backbone yolov10m.pt")
+            weights_path = "yolov10m.pt"
     
     print(f"Starting Morphology Fusion training for {epochs} epochs on {device}...")
     print(f"Using material: {args.material}, weights: {weights_path}, dataset: {dataset_yaml}")
