@@ -1,20 +1,21 @@
 """
 fix_material_classifier_data.py
 ================================
-The material_classifier dataset currently only has wood images.
-Steel and aluminum folders are empty, causing Stage 1 (ResNet18 router)
-to be trained on a single class — completely broken.
+Populates (or refreshes) the material_classifier dataset for all 3 classes
+by sampling from the full expanded processed datasets.
 
-This script samples representative images from:
-  - data/processed/steel/train/images/    → material_classifier/train/steel/
-  - data/processed_aluminum/images/train/ → material_classifier/train/aluminum/
-  - wood already has 210 train images ✅
+Samples from:
+  data/processed/steel/train/images/    → material_classifier/*/steel/
+  data/processed_aluminum/images/train/ → material_classifier/*/aluminum/
+  data/processed_wood/images/train/     → material_classifier/*/wood/
 
-We aim for ~300 images per class across train/val/test (same as wood).
+Old class folders are cleared before resampling so you always get fresh,
+diverse samples from the full expanded pool.
 
 Usage:
     python scripts/fix_material_classifier_data.py          # dry run
     python scripts/fix_material_classifier_data.py --apply  # write files
+    python scripts/fix_material_classifier_data.py --apply --train-count 500 --val-count 100
 """
 
 import argparse
@@ -31,14 +32,16 @@ PROJECT_ROOT = Path(__file__).parent.parent
 SOURCES = {
     "steel":    PROJECT_ROOT / "data" / "processed" / "steel" / "train" / "images",
     "aluminum": PROJECT_ROOT / "data" / "processed_aluminum" / "images" / "train",
+    "wood":     PROJECT_ROOT / "data" / "processed_wood" / "images" / "train",
 }
 
 CLASSIFIER_DIR = PROJECT_ROOT / "data" / "material_classifier"
 
-# Target counts to match wood (210 train, 45 val, 45 test = 300 total per class)
-TRAIN_COUNT = 210
-VAL_COUNT   = 45
-TEST_COUNT  = 45
+# Default: 300 train / 75 val / 75 test per class = 450 total
+# (wood pool is now 15,366 so no reason to keep only 210)
+TRAIN_COUNT = 300
+VAL_COUNT   = 75
+TEST_COUNT  = 75
 TOTAL       = TRAIN_COUNT + VAL_COUNT + TEST_COUNT
 
 RANDOM_SEED = 42
@@ -73,10 +76,16 @@ def sample_and_copy(material: str, source_dir: Path, dry_run: bool) -> bool:
 
     for split_name, imgs in splits.items():
         dest_dir = CLASSIFIER_DIR / split_name / material
-        logger.info(f"    {split_name}/{material}: {len(imgs)} images {'(dry run)' if dry_run else ''}")
 
         if not dry_run:
+            # Clear old samples first — ensures fresh diverse samples from expanded pool
+            if dest_dir.exists():
+                shutil.rmtree(dest_dir)
             dest_dir.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"    {split_name}/{material}: {len(imgs)} images {'(dry run)' if dry_run else '(writing...)'}")
+
+        if not dry_run:
             for img_path in imgs:
                 shutil.copy2(img_path, dest_dir / img_path.name)
 
