@@ -33,7 +33,6 @@ def main(args):
 
     # CRITICAL FIX: Ultralytics resolves relative paths against its global settings.yaml
     # We must overwrite dataset.yaml to use the absolute path of the current project directory!
-    import yaml
     with open(data_yaml_path, 'r') as f:
         ds_yaml = yaml.safe_load(f)
     
