@@ -50,6 +50,7 @@ def main(args):
         project='runs',
         name=run_name,
         workers=2,
+        cache=True,
         exist_ok=True
     )
 
