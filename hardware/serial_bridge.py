@@ -12,7 +12,7 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class SerialBridge:
-    def __init__(self, port: Optional[str] = None, baudrate: int = 9600):
+    def __init__(self, port: Optional[str] = None, baudrate: int = 115200):
         self.ser = None
         self.connected = False
         
@@ -26,18 +26,19 @@ class SerialBridge:
         if port:
             try:
                 self.ser = serial.Serial(port, baudrate, timeout=1)
-                time.sleep(2)  # Wait for Arduino reset
+                time.sleep(2)  # Wait for ESP32/Arduino reset
                 self.connected = True
-                logging.info(f"Connected to Arduino on {port} at {baudrate} baud.")
+                logging.info(f"Connected to Microcontroller (ESP32/Arduino) on {port} at {baudrate} baud.")
             except Exception as e:
-                logging.warning(f"Failed to connect to Arduino on {port}: {e}")
+                logging.warning(f"Failed to connect on {port}: {e}")
         else:
-            logging.warning("No Arduino port provided or found.")
+            logging.warning("No Microcontroller (ESP32/Arduino) port provided or auto-detected.")
 
     def _auto_detect_port(self) -> Optional[str]:
         ports = serial.tools.list_ports.comports()
         for port in ports:
-            if "Arduino" in port.description or "CH340" in port.description:
+            desc = port.description.upper()
+            if any(k in desc for k in ["ESP32", "CP210", "CH340", "FTDI", "USB-SERIAL", "ARDUINO"]):
                 return port.device
         return None
 

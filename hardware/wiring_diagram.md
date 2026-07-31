@@ -1,46 +1,50 @@
-# Morphology-Aware Crack Inspection - Hardware Wiring Guide
+# 🔌 ESP32 Hardware Reject System Pinout & Wiring Diagram
+**Team SafePath | RVCE Hackathon 2026**
 
-This guide details the pin connections for the Arduino Uno handling the physical REJECT/PASS mechanisms.
+---
 
-## Components Needed
-1. Arduino Uno
-2. SG90 Micro Servo
-3. 5mm Red LED
-4. 5mm Green LED
-5. 5V Active Buzzer
-6. 2x 220Ω Resistors
-7. Breadboard & Jumper Wires
+## 📌 GPIO Pin Mapping (ESP32 Dev Board)
 
-## ASCII Circuit Schematic
+| Hardware Component | ESP32 GPIO Pin | Power Source | Wire Color / Connection |
+|---|---|---|---|
+| 🔴 **Red LED** | **GPIO 14** | ESP32 3.3V (220Ω Resistor) | Signal $\rightarrow$ Anode, GND $\rightarrow$ Cathode |
+| 🔔 **Buzzer** | **GPIO 26** | ESP32 3.3V / 5V | Signal $\rightarrow$ Positive, GND $\rightarrow$ Ground |
+| 🟢 **Green LED** | **GPIO 27** | ESP32 3.3V (220Ω Resistor) | Signal $\rightarrow$ Anode, GND $\rightarrow$ Cathode |
+| 🦾 **SG90 Servo (Signal)** | **GPIO 13** | ESP32 GPIO | Orange / Yellow Signal Wire |
+| 🔋 **SG90 Servo (Power)** | **External 5V VCC** | **External 5V Power Supply** | Red Power Wire |
+| ⚡ **Shared Ground** | **ESP32 GND** | **Common Ground Rail** | Black Wire (Connects ESP32 GND + External 5V GND) |
 
-```text
-USB Power (from PC) ----> Arduino Uno [5V] ----> Breadboard [+] Rail
-                          Arduino Uno [GND] ---> Breadboard [-] Rail
+---
 
-[ Red LED ]
-Pin 2  ---> [220Ω Resistor] ---> Anode (+)
-                                 Cathode (-) ---> [-] Rail
+## ⚡ Circuit Schematic Diagram
 
-[ Green LED ]
-Pin 3  ---> [220Ω Resistor] ---> Anode (+)
-                                 Cathode (-) ---> [-] Rail
-
-[ Buzzer ]
-Pin 4  ---> Positive (+) terminal
-            Negative (-) terminal ---> [-] Rail
-
-[ SG90 Servo ]
-Pin 9  ---> Control Wire (Orange/Yellow)
-[5V]   ---> VCC Wire (Red)
-[GND]  ---> GND Wire (Brown/Black)
+```
+                       +-----------------------------------+
+                       |         ESP32 Dev Board           |
+                       +-----------------------------------+
+                       |                                   |
+    GPIO 14 -----------> [ 220Ω ] ----> (Red LED) -------->|
+                       |                                   |---> Common Ground Rail (GND)
+    GPIO 26 --------------------------> (Buzzer) --------->|
+                       |                                   |
+    GPIO 27 -----------> [ 220Ω ] ----> (Green LED) ------>|
+                       |                                   |
+    GPIO 13 -----------> [ Signal ] --- (SG90 Servo)        |
+                       +-----------------------------------+
+                                             |
+                                 +-----------+-----------+
+                                 |  External 5V Power    |
+                                 |  +5V -> Servo Power   |
+                                 |  GND -> Common Rail   |
+                                 +-----------------------+
 ```
 
-## Pin-by-Pin Guide for Pulkit
+---
 
-*   **Digital Pin 2**: Connects to the Red LED (via resistor). Indicates a `REJECT` state.
-*   **Digital Pin 3**: Connects to the Green LED (via resistor). Indicates a `PASS` state.
-*   **Digital Pin 4**: Connects to the positive leg of the active buzzer. Sounds when `REJECT` is active.
-*   **Digital Pin 9 (PWM)**: Connects to the signal line of the SG90 Servo. Sweeps to push defective items.
-*   **5V & GND**: Ensure all components share the same ground. The SG90 can be powered directly from the Arduino 5V pin as long as it's not under heavy load. If you add more servos later, use an external 5V supply.
+## ⚙️ Microcontroller Firmware Installation
 
-*Note: The Arduino receives power and serial commands via USB from the inference PC.*
+1. Open Arduino IDE or PlatformIO.
+2. Install the **`ESP32Servo`** library via Library Manager.
+3. Open `hardware/esp32_reject.ino`.
+4. Select board **ESP32 Dev Module** and upload via USB-C / Micro-USB cable.
+5. Set Baud rate to **`115200`** in Python (`inference/realtime.py`).
