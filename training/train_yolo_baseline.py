@@ -37,13 +37,13 @@ def main(args):
         ds_yaml = yaml.safe_load(f)
     
     if 'path' in ds_yaml:
-        original_path = ds_yaml['path']
-        if not Path(original_path).is_absolute():
-            # Must resolve data_yaml_path to absolute first, so the resulting path is absolute!
-            resolved_path = (Path(data_yaml_path).resolve().parent / original_path).resolve()
-            ds_yaml['path'] = str(resolved_path).replace('\\', '/')
-            with open(data_yaml_path, 'w') as f:
-                yaml.dump(ds_yaml, f, sort_keys=False)
+        # We must reconstruct the absolute path from scratch using args.name
+        # because previous runs may have corrupted dataset.yaml with a bad relative path.
+        material_name = args.name
+        resolved_path = (Path(data_yaml_path).resolve().parent.parent / "data" / "processed" / material_name).resolve()
+        ds_yaml['path'] = str(resolved_path).replace('\\', '/')
+        with open(data_yaml_path, 'w') as f:
+            yaml.dump(ds_yaml, f, sort_keys=False)
 
     model.train(
         data=data_yaml_path,
