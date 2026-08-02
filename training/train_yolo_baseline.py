@@ -29,6 +29,8 @@ def main(args):
         except Exception:
             pass
 
+    data_yaml_path = args.data if args.data else config['paths']['dataset_yaml']
+
     # Dynamic resolution of absolute dataset root directory
     yaml_abs = Path(data_yaml_path).resolve()
     if (yaml_abs.parent / "train").exists():
