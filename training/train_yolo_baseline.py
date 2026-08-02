@@ -29,21 +29,25 @@ def main(args):
         except Exception:
             pass
 
-    data_yaml_path = args.data if args.data else config['paths']['dataset_yaml']
+    # Dynamic resolution of absolute dataset root directory
+    yaml_abs = Path(data_yaml_path).resolve()
+    if (yaml_abs.parent / "train").exists():
+        root_dir = yaml_abs.parent
+    elif (yaml_abs.parent / "processed_aluminum").exists():
+        root_dir = yaml_abs.parent / "processed_aluminum"
+    elif (yaml_abs.parent / "processed" / "wood_10class").exists():
+        root_dir = yaml_abs.parent / "processed" / "wood_10class"
+    elif (yaml_abs.parent / "processed" / "steel_unified").exists():
+        root_dir = yaml_abs.parent / "processed" / "steel_unified"
+    else:
+        root_dir = yaml_abs.parent
 
-    # CRITICAL FIX: Ultralytics resolves relative paths against its global settings.yaml
-    # We must overwrite dataset.yaml to use the absolute path of the current project directory!
     with open(data_yaml_path, 'r') as f:
         ds_yaml = yaml.safe_load(f)
     
-    if 'path' in ds_yaml:
-        # We must reconstruct the absolute path from scratch using args.name
-        # because previous runs may have corrupted dataset.yaml with a bad relative path.
-        material_name = args.name
-        resolved_path = (Path(data_yaml_path).resolve().parent.parent / "data" / "processed" / material_name).resolve()
-        ds_yaml['path'] = str(resolved_path).replace('\\', '/')
-        with open(data_yaml_path, 'w') as f:
-            yaml.dump(ds_yaml, f, sort_keys=False)
+    ds_yaml['path'] = str(root_dir).replace('\\', '/')
+    with open(data_yaml_path, 'w') as f:
+        yaml.dump(ds_yaml, f, sort_keys=False)
 
     model.train(
         data=data_yaml_path,
