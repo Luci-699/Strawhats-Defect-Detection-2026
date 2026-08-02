@@ -150,17 +150,17 @@ def check_gpu():
 def check_datasets():
     """Verify all required datasets exist."""
     datasets = {
-        "Steel Unified (15-Class)": DATA_DIR / "processed" / "steel_unified" / "images" / "train",
-        "Aluminum (10-Class)": DATA_DIR / "processed_aluminum" / "images" / "train",
-        "Wood (10-Class)": DATA_DIR / "processed" / "wood_10class" / "images" / "train",
-        "Material Classifier (3-Class)": DATA_DIR / "material_classifier" / "train",
+        "Steel Unified (15-Class)": DATA_DIR / "processed" / "steel_unified",
+        "Aluminum (10-Class)": DATA_DIR / "processed_aluminum",
+        "Wood (10-Class)": DATA_DIR / "processed" / "wood_10class",
+        "Material Classifier (3-Class)": DATA_DIR / "material_classifier",
     }
     
     all_ok = True
     for name, path in datasets.items():
         if path.exists():
             count = len([f for f in path.rglob("*") if f.is_file() and f.suffix.lower() in ('.jpg','.jpeg','.png','.bmp')])
-            logger.info(f"  [OK] {name}: {count} images")
+            logger.info(f"  [OK] {name}: {count} images found at {path.name}")
             if count == 0:
                 logger.warning(f"       WARNING: {name} directory exists but has no images!")
                 all_ok = False
