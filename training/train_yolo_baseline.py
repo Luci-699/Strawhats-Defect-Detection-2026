@@ -33,14 +33,15 @@ def main(args):
 
     # Dynamic resolution of absolute dataset root directory
     yaml_abs = Path(data_yaml_path).resolve()
+    yaml_name_lower = str(yaml_abs).lower()
     if (yaml_abs.parent / "train").exists():
         root_dir = yaml_abs.parent
-    elif (yaml_abs.parent / "processed_aluminum").exists():
-        root_dir = yaml_abs.parent / "processed_aluminum"
-    elif (yaml_abs.parent / "processed" / "wood_10class").exists():
-        root_dir = yaml_abs.parent / "processed" / "wood_10class"
-    elif (yaml_abs.parent / "processed" / "steel_unified").exists():
-        root_dir = yaml_abs.parent / "processed" / "steel_unified"
+    elif "wood" in yaml_name_lower:
+        root_dir = (Path("data") / "processed" / "wood_10class").resolve()
+    elif "aluminum" in yaml_name_lower:
+        root_dir = (Path("data") / "processed_aluminum").resolve()
+    elif "steel" in yaml_name_lower:
+        root_dir = (Path("data") / "processed" / "steel_unified").resolve()
     else:
         root_dir = yaml_abs.parent
 
