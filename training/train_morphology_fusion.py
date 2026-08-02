@@ -169,8 +169,10 @@ def main(args):
         candidates = [
             f"runs/{args.material}/weights/best.pt",
             f"runs/{args.material}/train/weights/best.pt",
+            f"runs/detect/runs/{args.material}/weights/best.pt",
             f"runs/detect/runs/{args.material}/train/weights/best.pt",
             f"runs/detect/{args.material}/weights/best.pt",
+            f"runs/detect/{args.material}/train/weights/best.pt",
         ]
         found = False
         for cand in candidates:
