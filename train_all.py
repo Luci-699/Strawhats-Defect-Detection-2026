@@ -150,10 +150,10 @@ def check_gpu():
 def check_datasets():
     """Verify all required datasets exist."""
     datasets = {
-        "Steel (NEU-DET)": DATA_DIR / "processed" / "steel" / "train" / "images",
-        "Aluminum": DATA_DIR / "processed_aluminum" / "images" / "train",
-        "Wood": DATA_DIR / "processed_wood" / "images" / "train",
-        "Material Classifier": DATA_DIR / "material_classifier" / "train",
+        "Steel Unified (15-Class)": DATA_DIR / "processed" / "steel_unified" / "images" / "train",
+        "Aluminum (10-Class)": DATA_DIR / "processed_aluminum" / "images" / "train",
+        "Wood (10-Class)": DATA_DIR / "processed" / "wood_10class" / "images" / "train",
+        "Material Classifier (3-Class)": DATA_DIR / "material_classifier" / "train",
     }
     
     all_ok = True
