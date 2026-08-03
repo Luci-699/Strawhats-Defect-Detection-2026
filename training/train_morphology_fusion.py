@@ -151,8 +151,17 @@ def main(args):
     
     device = torch.device(args.device)
     epochs = args.epochs if args.epochs else config['training']['epochs_fusion']
-    batch_size = args.batch if args.batch else config['training']['batch_size']
     img_size = config['training']['image_size']
+    
+    if args.data:
+        dataset_yaml = args.data
+    else:
+        default_data = {
+            'steel': 'data/processed/steel_unified/dataset.yaml',
+            'aluminum': 'data/dataset_aluminum.yaml',
+            'wood': 'data/dataset_wood_10class.yaml'
+        }
+        dataset_yaml = default_data.get(args.material, config['paths'].get('dataset_yaml', 'data/processed/steel_unified/dataset.yaml'))
     
     # Determine weights with automatic fallback search
     if args.material == 'steel':
