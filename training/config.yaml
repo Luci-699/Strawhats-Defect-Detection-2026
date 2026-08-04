@@ -11,7 +11,7 @@ training:
   learning_rate: 0.005     # YOLO baseline stages 2/3/4 (halved for batch=8)
   fusion_lr: 0.0001        # Stage 5 morphology fusion AdamW (much lower for stability)
   lr_scheduler: CosineAnnealing
-  batch_size: 8
+  batch_size: 4
   epochs_baseline: 150
   epochs_fusion: 50
   weight_decay: 0.0001
