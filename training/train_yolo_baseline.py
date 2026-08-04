@@ -52,6 +52,9 @@ def main(args):
     with open(data_yaml_path, 'w') as f:
         yaml.dump(ds_yaml, f, sort_keys=False)
 
+    # On Windows, workers > 0 causes multiprocessing overhead — use 0
+    num_workers = 0 if sys.platform == 'win32' else 4
+
     model.train(
         data=data_yaml_path,
         epochs=epochs,
@@ -64,6 +67,7 @@ def main(args):
         weight_decay=float(config['training']['weight_decay']),
         cos_lr=True,
         patience=30,
+        amp=True,          # FP16 mixed precision: ~1.5-2x faster, half VRAM usage
         augment=True,
         mosaic=1.0,
         mixup=0.15,
@@ -77,8 +81,8 @@ def main(args):
         scale=0.5,
         project='runs',
         name=run_name,
-        workers=4,
-        cache='disk',
+        workers=num_workers,
+        cache=False,       # Avoid disk I/O bottleneck on Windows
         exist_ok=True
     )
 
