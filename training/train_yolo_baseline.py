@@ -86,7 +86,7 @@ def main(args):
         project='runs',
         name=run_name,
         workers=num_workers,
-        cache=False,       # Avoid disk I/O bottleneck on Windows
+        cache='ram',       # Load all images into RAM — critical for HDD users (3-4x faster per epoch)
         exist_ok=True
     )
 
