@@ -36,6 +36,10 @@ def main(args):
     yaml_name_lower = str(yaml_abs).lower()
     if (yaml_abs.parent / "train").exists():
         root_dir = yaml_abs.parent
+    elif "wood" in yaml_name_lower and "3k" in yaml_name_lower:
+        root_dir = (Path("data") / "processed" / "wood_3k").resolve()
+    elif "aluminum" in yaml_name_lower and "3k" in yaml_name_lower:
+        root_dir = (Path("data") / "processed_aluminum_3k").resolve()
     elif "wood" in yaml_name_lower:
         root_dir = (Path("data") / "processed" / "wood_10class").resolve()
     elif "aluminum" in yaml_name_lower:
