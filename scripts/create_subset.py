@@ -22,11 +22,20 @@ logger = logging.getLogger(__name__)
 def get_class_from_label(label_path: Path) -> int:
     """Return the first class id found in a YOLO label file."""
     try:
-        lines = label_path.read_text().strip().splitlines()
-        if lines:
-            return int(lines[0].split()[0])
+        # Explicit utf-8 with errors='ignore' — prevents hanging on Windows
+        content = label_path.read_text(encoding="utf-8", errors="ignore").strip()
+        if not content:
+            return -1
+        first_line = content.splitlines()[0]
+        return int(first_line.split()[0])
     except Exception:
-        pass
+        try:
+            # Binary fallback for any encoding edge case
+            raw = label_path.read_bytes().decode("latin-1", errors="ignore").strip()
+            if raw:
+                return int(raw.splitlines()[0].split()[0])
+        except Exception:
+            pass
     return -1
 
 
