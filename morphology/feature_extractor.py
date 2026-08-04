@@ -101,8 +101,10 @@ class MorphologicalFeatureExtractor:
             if len(x_skel) > 1:
                 cov_mat = np.cov(x_skel, y_skel)
                 vals, vecs = np.linalg.eig(cov_mat)
-                angle = np.arctan2(vecs[1, np.argmax(vals)], vecs[0, np.argmax(vals)])
-                features['skeleton_orientation'] = np.var(angle) # Or appropriate angle metric
+                # Principal axis angle in degrees [-90, 90]
+                angle = np.arctan2(vecs[1, np.argmax(np.abs(vals))],
+                                   vecs[0, np.argmax(np.abs(vals))]) * 180.0 / np.pi
+                features['skeleton_orientation'] = float(np.real(angle))
             else:
                 features['skeleton_orientation'] = 0.0
         else:

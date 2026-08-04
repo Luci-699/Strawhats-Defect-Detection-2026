@@ -151,7 +151,10 @@ def main(args):
     
     device = torch.device(args.device)
     epochs = args.epochs if args.epochs else config['training']['epochs_fusion']
-    img_size = config['training']['image_size']
+    # Fusion always uses 640 — backbone is frozen so imgsz doesn't change accuracy
+    # but 800 would make the CPU morphology extraction very slow
+    img_size = 640
+    batch_size = args.batch if args.batch else config['training'].get('batch_size', 4)
     
     if args.data:
         dataset_yaml = args.data
@@ -190,8 +193,11 @@ def main(args):
                 found = True
                 break
         if not found:
-            # Search anywhere in runs/ for matching best.pt
-            matches = list(Path("runs").rglob(f"*{args.material}*/best.pt"))
+            # Search in runs/ for YOLO best.pt — exclude morphology_fusion checkpoints
+            matches = [
+                p for p in Path("runs").rglob(f"*{args.material}*/best.pt")
+                if 'morphology_fusion' not in str(p)
+            ]
             if matches:
                 weights_path = str(matches[0])
                 found = True
