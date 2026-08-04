@@ -1,6 +1,6 @@
 path: processed_aluminum_3k
-train: images/train
-val: images/val
-test: images/test
+train: train/images
+val: val/images
+test: test/images
 nc: 10
 names: ['crease', 'crescent_gap', 'water_spot', 'welding_line', 'silk_spot', 'inclusion', 'oil_spot', 'punching', 'rolling_pit', 'waist_fold']
