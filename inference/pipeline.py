@@ -71,12 +71,6 @@ class InferencePipeline:
         annotated = frame.copy()
         h, w = annotated.shape[:2]
         
-        # Overlay Material Badge
-        mat_color = (255, 165, 0) if material == 'steel' else (251, 146, 60)
-        cv2.rectangle(annotated, (8, 8), (150, 36), (0, 0, 0), -1)
-        cv2.rectangle(annotated, (8, 8), (150, 36), mat_color, 1)
-        cv2.putText(annotated, material.upper(), (16, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.6, mat_color, 2)
-        
         defect_count = 0
         
         if results.boxes is not None and len(results.boxes) > 0:
