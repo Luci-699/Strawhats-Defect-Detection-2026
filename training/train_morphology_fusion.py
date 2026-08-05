@@ -149,7 +149,9 @@ def main(args):
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
     
-    device = torch.device(args.device)
+    # Handle bare integer device string (e.g. '0' → 'cuda:0')
+    dev_str = f'cuda:{args.device}' if args.device.isdigit() else args.device
+    device = torch.device(dev_str if torch.cuda.is_available() else 'cpu')
     epochs = args.epochs if args.epochs else config['training']['epochs_fusion']
     # Fusion always uses 640 — backbone is frozen so imgsz doesn't change accuracy
     # but 800 would make the CPU morphology extraction very slow
