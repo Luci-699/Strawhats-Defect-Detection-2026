@@ -28,6 +28,10 @@ data/processed/*
 !data/processed/.gitkeep
 data/real_samples/*
 !data/real_samples/.gitkeep
+data/processed_aluminum_3k/
+demo_samples/steel/
+demo_samples/wood/
+demo_samples/test_split/
 *.zip
 *.tar.gz
 *.7z

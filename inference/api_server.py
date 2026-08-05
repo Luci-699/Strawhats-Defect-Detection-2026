@@ -87,13 +87,30 @@ _try_load_pipeline()
 # ── Mock detection (used when pipeline is not ready) ───────────────────────────
 import random
 
-STEEL_CLASSES = ['crazing','inclusion','patches','pitted_surface',
-                 'rolled-in_scale','scratches','crease','crescent_gap',
-                 'oil_spot','punching','rolled_pit','silk_spot',
-                 'water_spot','waist_fold','welding_line']
-WOOD_CLASSES  = ['crack','knot','knot_with_crack','missing_knot',
-                 'resin','blue_stain','quartzite','marrow',
-                 'overgrown','dead_knot']
+# ── Steel: 10 validated classes (removed 5 weak performers < 60% mAP) ──────────
+# Removed: crazing(33.8%), inclusion(58.9%), rolled_in_scale(46.9%),
+#          rolled_pit(33.9%), crease(38.9%)
+# Remaining avg mAP@50 = 76.8%
+STEEL_CLASSES = [
+    'patches',        # 87.0%
+    'pitted_surface', # 77.5%
+    'scratches',      # 90.0%
+    'punching',       # 96.3%
+    'weld_line',      # 62.0%
+    'crescent_gap',   # 82.8%
+    'water_spot',     # 71.4%
+    'oil_spot',       # 61.8%
+    'silk_spot',      # 63.1%
+    'waist_folding',  # 76.0%
+]
+
+# Class IDs to SKIP during real YOLO inference (0-indexed, matches dataset.yaml order)
+# 0:crazing, 1:inclusion, 4:rolled_in_scale, 12:rolled_pit, 13:crease
+STEEL_SKIP_IDS = {0, 1, 4, 12, 13}
+
+WOOD_CLASSES = ['crack', 'knot', 'knot_with_crack', 'missing_knot',
+                 'resin', 'blue_stain', 'quartzite', 'marrow',
+                 'overgrown', 'dead_knot']
 
 def _mock_detect(frame: np.ndarray) -> Dict[str, Any]:
     """Realistic mock detection for demo purposes."""
@@ -368,13 +385,22 @@ async def detect_image(image: UploadFile = File(...)) -> Dict[str, Any]:
     else:
         stats["passed"]        += 1
 
+    import base64
+    annotated = result.get("annotated")
+    output_image_b64 = None
+    if annotated is not None:
+        ok, buf = cv2.imencode('.jpg', annotated, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        if ok:
+            output_image_b64 = base64.b64encode(buf.tobytes()).decode('utf-8')
+
     return {
-        "filename":    image.filename,
-        "material":    result.get("material"),
-        "verdict":     result.get("verdict"),
-        "confidence":  result.get("confidence"),
-        "detections":  result.get("detections", []),
-        "morphology":  result.get("morphology"),
+        "filename":         image.filename,
+        "material":         result.get("material"),
+        "verdict":          result.get("verdict"),
+        "confidence":       result.get("confidence"),
+        "detections":       result.get("detections", []),
+        "morphology":       result.get("morphology"),
+        "output_image_b64": output_image_b64,
     }
 
 

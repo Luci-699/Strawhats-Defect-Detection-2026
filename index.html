@@ -998,8 +998,10 @@ function setStatus(s) {
 }
 
 /* ─── Mock result (when backend unavailable) ────────────────── */
-const STEEL_CLS = ['crazing','inclusion','patches','pitted_surface',
-  'rolled-in_scale','scratches','crease','crescent_gap','oil_spot'];
+// Steel: 10 validated classes (avg mAP@50 = 76.8%)
+// Removed: crazing(33.8%), inclusion(58.9%), rolled_in_scale(46.9%), rolled_pit(33.9%), crease(38.9%)
+const STEEL_CLS = ['patches','pitted_surface','scratches','punching',
+  'weld_line','crescent_gap','water_spot','oil_spot','silk_spot','waist_folding'];
 const WOOD_CLS  = ['crack','knot','knot_with_crack','missing_knot',
   'resin','blue_stain','quartzite','marrow'];
 
