@@ -101,6 +101,18 @@ def _try_load_serial_bridge():
 _try_load_serial_bridge()
 _last_hardware_verdict = None
 
+def _send_esp32_command(material: str, defects: int, verdict: str):
+    """Sends exact protocol commands to Pulkit's ESP32 sketch."""
+    if _serial_bridge and _serial_bridge.is_connected():
+        mat = str(material).upper()
+        # 1. Update OLED screen status: e.g. STATUS:STEEL,4
+        _serial_bridge.send(f"STATUS:{mat},{defects}")
+        # 2. Trigger hardware actuators: REJECT or PASS
+        if str(verdict).upper() in ["FAIL", "REJECT"]:
+            _serial_bridge.send("REJECT")
+        else:
+            _serial_bridge.send("PASS")
+
 # ── Mock detection (used when pipeline is not ready) ───────────────────────────
 import random
 
@@ -284,15 +296,6 @@ async def inference_loop():
         elif verdict == "PASS":
             stats["passed"]        += 1
 
-        # Only trigger ESP32 hardware when verdict CHANGES (prevents buzzer loop)
-        mat_str = str(result.get("material", "STEEL")).upper()
-        n_defects = len(result.get("detections", []))
-        if _serial_bridge and _serial_bridge.is_connected():
-            if verdict in ["PASS", "FAIL"] and verdict != _last_hardware_verdict:
-                _last_hardware_verdict = verdict
-                cmd = f"REJECT,{mat_str},{n_defects}" if verdict == "FAIL" else f"PASS,{mat_str},0"
-                _serial_bridge.send(cmd)
-
         # ── FPS ──────────────────────────────────────────────────────
         frame_count += 1
         now = time.perf_counter()
@@ -368,14 +371,10 @@ def get_stats():
 @app.post("/hitl_decision")
 def hitl_decision(payload: Dict[str, Any]):
     verdict = payload.get("verdict", "PASS").upper()
-    material = payload.get("material", "STEEL").upper()
+    material = payload.get("material", "STEEL")
     defects = payload.get("defects", 0)
     logger.info(f"👤 Human-in-the-Loop decision received: {verdict} for {material} ({defects} defects)")
-    if _serial_bridge and _serial_bridge.is_connected():
-        if verdict in ["FAIL", "REJECT"]:
-            _serial_bridge.send(f"REJECT,{material},{defects}")
-        else:
-            _serial_bridge.send(f"PASS,{material},0")
+    _send_esp32_command(material, defects, verdict)
     return {"status": "ok", "verdict": verdict}
 
 
@@ -440,18 +439,17 @@ async def detect_image(image: UploadFile = File(...)) -> Dict[str, Any]:
         result = _mock_detect(frame)
 
     verdict = result.get("verdict")
-    mat_str = str(result.get("material", "STEEL")).upper()
+    mat = str(result.get("material", "STEEL"))
     n_defects = len(result.get("detections", []))
     stats["total_scanned"] += 1
     if verdict == "FAIL":
         stats["total_defects"] += n_defects
         stats["failed"]        += 1
-        if _serial_bridge and _serial_bridge.is_connected():
-            _serial_bridge.send(f"REJECT,{mat_str},{n_defects}")
     else:
         stats["passed"]        += 1
-        if _serial_bridge and _serial_bridge.is_connected():
-            _serial_bridge.send(f"PASS,{mat_str},0")
+
+    # Trigger ESP32 serial update
+    _send_esp32_command(mat, n_defects, verdict)
 
     import base64
     annotated = result.get("annotated")
