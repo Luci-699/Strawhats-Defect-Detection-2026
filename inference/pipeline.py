@@ -2,7 +2,7 @@
 inference/pipeline.py
 ===================
 RVCE Hackathon 2026 — Team Strawhat-Pirates
-Integrated Inference Pipeline using MaterialRouter and YOLOv10 Detectors.
+Integrated Inference Pipeline using MaterialRouter, Steel YOLO, and Wood YOLO Detectors.
 """
 
 import os
@@ -23,6 +23,7 @@ class InferencePipeline:
             self.device = device
             
         self.steel_yolo = None
+        self.wood_yolo = None
         self.router = None
         
         # Load Steel YOLO
@@ -37,20 +38,36 @@ class InferencePipeline:
         else:
             print(f"⚠️ Steel weights not found at {steel_weights}")
 
+        # Load Wood YOLO
+        wood_weights = ROOT / 'runs' / 'detect' / 'runs' / 'wood' / 'weights' / 'best.pt'
+        if not wood_weights.exists():
+            wood_weights = ROOT / 'runs' / 'detect' / 'wood' / 'weights' / 'best.pt'
+
+        if wood_weights.exists():
+            print(f"Loading Wood YOLO from {wood_weights}...")
+            self.wood_yolo = YOLO(str(wood_weights))
+            print("✅ Wood YOLO loaded successfully!")
+        else:
+            print(f"⚠️ Wood weights not found at {wood_weights}")
+
         # Load Material Router
         classifier_path = ROOT / 'runs' / 'classifier' / 'best_material_classifier.pth'
         if classifier_path.exists():
             try:
                 from models.material_router import MaterialRouter
-                self.router = MaterialRouter(str(classifier_path), {'steel': str(steel_weights)}, device=self.device)
+                weights_map = {}
+                if steel_weights.exists(): weights_map['steel'] = str(steel_weights)
+                if wood_weights.exists(): weights_map['wood'] = str(wood_weights)
+                
+                self.router = MaterialRouter(str(classifier_path), weights_map, device=self.device)
                 print("✅ Material Router loaded successfully!")
             except Exception as e:
                 print(f"⚠️ Material Router optional fallback: {e}")
 
     def predict(self, frame: np.ndarray, conf_threshold: float = 0.15) -> Dict[str, Any]:
         """Runs material classification and defect detection on frame."""
-        if self.steel_yolo is None:
-            raise RuntimeError("Steel YOLO model is not loaded.")
+        if self.steel_yolo is None and self.wood_yolo is None:
+            raise RuntimeError("No YOLO models loaded.")
             
         material = "steel"
         material_conf = 0.98
@@ -64,8 +81,13 @@ class InferencePipeline:
             except Exception:
                 material = "steel"
         
-        # Run YOLO detection (with sensitive threshold = 0.15 for deep scratches)
-        results = self.steel_yolo(frame, conf=conf_threshold, verbose=False)[0]
+        # Select active detector based on material
+        active_yolo = self.wood_yolo if (material == 'wood' and self.wood_yolo is not None) else self.steel_yolo
+        if active_yolo is None:
+            active_yolo = self.steel_yolo or self.wood_yolo
+
+        # Run YOLO detection
+        results = active_yolo(frame, conf=conf_threshold, verbose=False)[0]
         
         detections = []
         annotated = frame.copy()
