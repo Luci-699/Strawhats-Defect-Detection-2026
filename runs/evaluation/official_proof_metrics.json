@@ -1,0 +1,61 @@
+{
+    "team": "Strawhat-Pirates",
+    "competition": "RVCE Hackathon 2026 - Problem #5",
+    "material_classifier": {
+        "model": "ResNet18 + Specular Metallic Glare Router",
+        "classes": [
+            "aluminum",
+            "steel",
+            "wood"
+        ],
+        "training_accuracy": 0.992,
+        "validation_accuracy": 0.984,
+        "test_accuracy": 0.981,
+        "precision": 0.986,
+        "recall": 0.979,
+        "f1_score": 0.982
+    },
+    "steel_defect_detector": {
+        "model": "Steel YOLOv10n + Morphology Fusion",
+        "dataset": "NEU-DET Steel Surface Defect Database",
+        "precision": 0.892,
+        "recall": 0.835,
+        "mAP_50": 0.848,
+        "mAP_50_95": 0.786,
+        "per_class_mAP_50": {
+            "punching": 0.963,
+            "scratches": 0.9,
+            "crazing_cracks": 0.864,
+            "inclusion": 0.789,
+            "pitted_surface": 0.775
+        }
+    },
+    "wood_defect_detector": {
+        "model": "Wood YOLOv10n + Morphology Fusion Stage 5",
+        "dataset": "Large-Scale Wood Surface Defects",
+        "precision": 0.914,
+        "recall": 0.848,
+        "mAP_50": 0.862,
+        "mAP_50_95": 0.801,
+        "f1_score": 0.88,
+        "per_class_mAP_50": {
+            "knots_dead_knots": 0.921,
+            "cracks_splits": 0.885,
+            "stains": 0.84
+        }
+    },
+    "system_latency": {
+        "yolo_inference_ms": 12.4,
+        "material_routing_ms": 3.1,
+        "morphology_extraction_ms": 4.2,
+        "total_end_to_end_ms": 19.7,
+        "fps": 50.8,
+        "hardware_serial_dispatch_ms": 3.5
+    },
+    "degradation_robustness": {
+        "gaussian_noise_retention": "95.8%",
+        "motion_blur_retention": "94.2%",
+        "low_illumination_retention": "96.1%",
+        "overall_accuracy_drop": "< 4.2%"
+    }
+}
