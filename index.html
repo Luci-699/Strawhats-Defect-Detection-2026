@@ -821,7 +821,8 @@ async function startWebcamLive() {
   try {
     liveStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
   } catch(err) {
-    E.procTxt.textContent = 'Camera access denied — please allow camera and retry';
+    // If browser camera is blocked by OS/device, fall back to backend MJPEG stream
+    startAPILive();
     return;
   }
   liveMode = true;
