@@ -64,7 +64,7 @@ class InferencePipeline:
             except Exception as e:
                 print(f"⚠️ Material Router optional fallback: {e}")
 
-    def predict(self, frame: np.ndarray, conf_threshold: float = 0.15) -> Dict[str, Any]:
+    def predict(self, frame: np.ndarray, conf_threshold: float = 0.35) -> Dict[str, Any]:
         """Runs material classification and defect detection on frame."""
         if self.steel_yolo is None and self.wood_yolo is None:
             raise RuntimeError("No YOLO models loaded.")
@@ -81,13 +81,21 @@ class InferencePipeline:
             except Exception:
                 material = "steel"
         
+        # ── DSP Preprocessing (CLAHE + Gaussian Filter) ─────────────────
+        try:
+            from morphology.preprocessing import preprocess_image
+            clean_gray = preprocess_image(frame)
+            proc_frame = cv2.cvtColor(clean_gray, cv2.COLOR_GRAY2BGR)
+        except Exception:
+            proc_frame = frame
+
         # Select active detector based on material
         active_yolo = self.wood_yolo if (material == 'wood' and self.wood_yolo is not None) else self.steel_yolo
         if active_yolo is None:
             active_yolo = self.steel_yolo or self.wood_yolo
 
-        # Run YOLO detection
-        results = active_yolo(frame, conf=conf_threshold, verbose=False)[0]
+        # Run YOLO detection on DSP-preprocessed frame with conf_threshold=0.35
+        results = active_yolo(proc_frame, conf=conf_threshold, verbose=False)[0]
         
         detections = []
         annotated = frame.copy()
