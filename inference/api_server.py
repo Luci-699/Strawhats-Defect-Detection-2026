@@ -225,7 +225,11 @@ async def inference_loop():
     """Capture webcam, run inference, update global state and broadcast."""
     global current_frame, current_live, stats
 
-    cap = cv2.VideoCapture(0)
+    cam_src = os.getenv("CAM_SOURCE", "0")
+    if cam_src.isdigit():
+        cam_src = int(cam_src)
+    logger.info(f"Opening camera source: {cam_src}")
+    cap = cv2.VideoCapture(cam_src)
     if not cap.isOpened():
         logger.warning("⚠️  No webcam found — using colour-bar test pattern")
         cap = None
@@ -336,6 +340,18 @@ def health():
 @app.get("/stats")
 def get_stats():
     return stats
+
+
+@app.post("/hitl_decision")
+def hitl_decision(payload: Dict[str, Any]):
+    verdict = payload.get("verdict", "PASS").upper()
+    logger.info(f"👤 Human-in-the-Loop decision received: {verdict}")
+    if _serial_bridge and _serial_bridge.is_connected():
+        if verdict in ["FAIL", "REJECT"]:
+            _serial_bridge.send("REJECT")
+        else:
+            _serial_bridge.send("PASS")
+    return {"status": "ok", "verdict": verdict}
 
 
 @app.get("/video_feed")

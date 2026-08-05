@@ -109,6 +109,63 @@
       border: 1px solid rgba(74,222,128,.18);
     }
 
+    /* ── HITL Toggle & Human Review Card ────────────────────────── */
+    .hitl-wrap {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-hi);
+      padding: 3px;
+      border-radius: 999px;
+    }
+    .hitl-btn {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: .72rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .hitl-btn.active {
+      background: linear-gradient(135deg, rgba(56,189,248,.3), rgba(59,130,246,.3));
+      border: 1px solid rgba(56,189,248,.5);
+      color: #fff;
+    }
+    .hitl-btn.active.manual {
+      background: linear-gradient(135deg, rgba(251,146,60,.3), rgba(245,158,11,.3));
+      border: 1px solid rgba(251,146,60,.5);
+      color: #fed7aa;
+    }
+
+    .human-card {
+      margin-top: 10px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(251,146,60,.14), rgba(239,68,68,.14));
+      border: 1px solid rgba(251,146,60,.4);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .hc-header {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: .75rem; font-weight: 800; color: #fed7aa; letter-spacing: .05em;
+    }
+    .hc-desc { font-size: .8rem; color: #e2e8f0; }
+    .hc-btns { display: flex; gap: 10px; margin-top: 4px; }
+    .hc-btn {
+      flex: 1; padding: 8px 12px; border-radius: 8px; font-weight: 800; font-size: .8rem;
+      cursor: pointer; border: none; transition: all .15s;
+    }
+    .hc-btn.pass { background: #22c55e; color: #fff; }
+    .hc-btn.pass:hover { background: #16a34a; transform: translateY(-1px); }
+    .hc-btn.reject { background: #ef4444; color: #fff; }
+    .hc-btn.reject:hover { background: #dc2626; transform: translateY(-1px); }
+
     /* ── Main 2×2 Grid ───────────────────────────────────────── */
     .grid {
       flex: 1;
@@ -476,6 +533,10 @@
       <span class="logo-tag">RVCE Hackathon 2026 · Problem #5</span>
     </div>
     <div class="header-right">
+      <div class="hitl-wrap">
+        <button class="hitl-btn active" id="hitl-auto" onclick="setHitlMode('auto')">🤖 Auto AI</button>
+        <button class="hitl-btn" id="hitl-manual" onclick="setHitlMode('manual')">👤 Human Review</button>
+      </div>
       <div class="fps-tag" id="fps-tag">-- FPS</div>
       <div class="pill">
         <span class="live-dot" id="live-dot"></span>
@@ -594,6 +655,19 @@
           <div class="count-card">
             <div class="count-label">Material</div>
             <div class="count-value material" id="cnt-material">—</div>
+          </div>
+        </div>
+
+        <!-- Human-in-the-Loop Review Card -->
+        <div class="human-card" id="human-card" style="display:none">
+          <div class="hc-header">
+            <span>👤 HUMAN REVIEW REQUIRED</span>
+            <span style="font-size:.68rem; opacity:.8">HITL MANUAL MODE</span>
+          </div>
+          <div class="hc-desc" id="hc-desc">AI recommends <b>REJECT</b>. Confirm or override decision:</div>
+          <div class="hc-btns">
+            <button class="hc-btn pass" onclick="humanDecide('PASS')">✓ Approve PASS</button>
+            <button class="hc-btn reject" onclick="humanDecide('REJECT')">✗ Approve REJECT</button>
           </div>
         </div>
 
@@ -859,8 +933,66 @@ function connectWS() {
   } catch(_) {}
 }
 
+/* ─── Human-in-the-Loop (HITL) Mode ──────────────────────────── */
+let hitlMode = 'auto'; // 'auto' or 'manual'
+let pendingResult = null;
+
+function setHitlMode(mode) {
+  hitlMode = mode;
+  const btnAuto = $('hitl-auto');
+  const btnManual = $('hitl-manual');
+  const hc = $('human-card');
+  if (mode === 'auto') {
+    if (btnAuto) btnAuto.className = 'hitl-btn active';
+    if (btnManual) btnManual.className = 'hitl-btn';
+    if (hc) hc.style.display = 'none';
+  } else {
+    if (btnAuto) btnAuto.className = 'hitl-btn';
+    if (btnManual) btnManual.className = 'hitl-btn active manual';
+    if (pendingResult && hc) {
+      hc.style.display = 'flex';
+    }
+  }
+}
+
+async function humanDecide(verdict) {
+  const hc = $('human-card');
+  if (hc) hc.style.display = 'none';
+  if (pendingResult) {
+    pendingResult.verdict = verdict;
+    renderResultCore(pendingResult);
+    
+    try {
+      await fetch(`${API}/hitl_decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ verdict: verdict })
+      });
+    } catch(_) {}
+    pendingResult = null;
+  }
+}
+
 /* ─── Render result into Q2 overlays + Q4 panel ────────────── */
 function renderResult(r) {
+  pendingResult = r;
+  if (hitlMode === 'manual') {
+    const hc = $('human-card');
+    const hcDesc = $('hc-desc');
+    if (hc && hcDesc) {
+      const rec = (r.verdict || 'REJECT').toUpperCase();
+      const nD = (r.detections || []).length;
+      hcDesc.innerHTML = `AI recommends <b style="color:${rec==='REJECT'?'#ef4444':'#22c55e'}">${rec}</b> (${nD} defect${nD!==1?'s':''} detected). Confirm or override:`;
+      hc.style.display = 'flex';
+    }
+  } else {
+    const hc = $('human-card');
+    if (hc) hc.style.display = 'none';
+  }
+  renderResultCore(r);
+}
+
+function renderResultCore(r) {
   const isPass = (r.verdict||'').toUpperCase() === 'PASS';
   const isFail = (r.verdict||'').toUpperCase() === 'FAIL';
   const dets   = r.detections || [];
