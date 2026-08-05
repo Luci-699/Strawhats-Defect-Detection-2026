@@ -232,8 +232,9 @@
       backdrop-filter: blur(8px);
       display: none;
     }
-    .ov-material.steel { background:rgba(96,165,250,.18); border-color:rgba(96,165,250,.5); color:var(--steel); }
-    .ov-material.wood  { background:rgba(251,146,60,.18);  border-color:rgba(251,146,60,.5);  color:var(--wood); }
+    .ov-material.steel    { background:rgba(96,165,250,.18); border-color:rgba(96,165,250,.5); color:var(--steel); }
+    .ov-material.aluminum { background:rgba(168,85,247,.18); border-color:rgba(168,85,247,.5); color:#c084fc; }
+    .ov-material.wood     { background:rgba(251,146,60,.18);  border-color:rgba(251,146,60,.5);  color:var(--wood); }
 
     .ov-verdict {
       position: absolute;
@@ -870,8 +871,8 @@ function renderResult(r) {
   // Material badge
   if (mat) {
     E.ovMaterial.style.display = 'block';
-    E.ovMaterial.className = 'ov-material ' + (mat === 'steel' ? 'steel' : 'wood');
-    E.ovMaterial.textContent = mat === 'steel' ? '🔩 STEEL' : '🪵 WOOD';
+    E.ovMaterial.className = 'ov-material ' + mat;
+    E.ovMaterial.textContent = mat === 'steel' ? '🔩 STEEL' : (mat === 'aluminum' ? '⚙️ ALUMINUM' : '🪵 WOOD');
   }
   // Verdict overlay
   if (r.verdict) {
