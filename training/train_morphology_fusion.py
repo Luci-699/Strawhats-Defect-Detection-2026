@@ -209,12 +209,37 @@ def main(args):
     
     print(f"Starting Morphology Fusion training for {epochs} epochs on {device}...")
     print(f"Using material: {args.material}, weights: {weights_path}, dataset: {dataset_yaml}")
-    
+
+    # ── Resolve absolute dataset root (mirrors train_yolo_baseline.py logic) ──
+    yaml_abs = Path(dataset_yaml).resolve()
+    yaml_name_lower = str(yaml_abs).lower()
+    if (yaml_abs.parent / "train").exists():
+        root_dir = yaml_abs.parent
+    elif "wood" in yaml_name_lower and "3k" in yaml_name_lower:
+        root_dir = (Path("data") / "processed" / "wood_3k").resolve()
+    elif "wood" in yaml_name_lower:
+        root_dir = (Path("data") / "processed" / "wood_10class").resolve()
+    elif "steel" in yaml_name_lower:
+        root_dir = (Path("data") / "processed" / "steel_unified").resolve()
+    else:
+        root_dir = yaml_abs.parent
+
+    with open(dataset_yaml, 'r') as f:
+        ds_yaml = yaml.safe_load(f)
+    ds_yaml['path'] = str(root_dir).replace('\\', '/')
+    with open(dataset_yaml, 'w') as f:
+        yaml.dump(ds_yaml, f, sort_keys=False)
+    print(f"[Dataset] Resolved root: {root_dir}")
+    # ──────────────────────────────────────────────────────────────────────────
+
     train_dataset = MorphologyFusionDataset(dataset_yaml, split='train', img_size=img_size)
-    val_dataset = MorphologyFusionDataset(dataset_yaml, split='val', img_size=img_size)
-    
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn, num_workers=0)
+    val_dataset   = MorphologyFusionDataset(dataset_yaml, split='val',   img_size=img_size)
+    print(f"[Dataset] train={len(train_dataset)} images, val={len(val_dataset)} images")
+    if len(train_dataset) == 0:
+        raise RuntimeError(f"Train dataset is empty! Check path: {root_dir}")
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,  collate_fn=collate_fn, num_workers=0)
+    val_loader   = DataLoader(val_dataset,   batch_size=batch_size, shuffle=False, collate_fn=collate_fn, num_workers=0)
     
     # Initialize components
     backbone = YOLOv10Backbone(weights_path).to(device)
