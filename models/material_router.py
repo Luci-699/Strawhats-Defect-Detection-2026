@@ -66,6 +66,14 @@ class MaterialRouter:
     def classify_material(self, image) -> tuple[str, float]:
         """Returns (material_name, confidence)"""
         if isinstance(image, np.ndarray):
+            # HSV color evaluation: Wood features warm brown hues (Hue 3-50) & saturation (>18)
+            # Metallic Steel / Aluminum are cold gray/silver (saturation < 15)
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+            avg_hue = np.mean(hsv[:, :, 0])
+            avg_sat = np.mean(hsv[:, :, 1])
+            if 3 <= avg_hue <= 50 and avg_sat > 18:
+                return 'wood', 0.96
+
             pil_img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         else:
             pil_img = image
