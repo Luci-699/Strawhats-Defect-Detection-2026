@@ -226,13 +226,29 @@ async def inference_loop():
     """Capture webcam, run inference, update global state and broadcast."""
     global current_frame, current_live, stats
 
-    cam_src = os.getenv("CAM_SOURCE", "0")
-    if cam_src.isdigit():
-        cam_src = int(cam_src)
-    logger.info(f"Opening camera source: {cam_src}")
-    cap = cv2.VideoCapture(cam_src)
-    if not cap.isOpened():
-        logger.warning("⚠️  No webcam found — using colour-bar test pattern")
+    cam_src = os.getenv("CAM_SOURCE", "auto")
+    cap = None
+    if cam_src != "auto" and cam_src.isdigit():
+        idx = int(cam_src)
+        c = cv2.VideoCapture(idx)
+        if c.isOpened():
+            cap = c
+            logger.info(f"Opening camera source: {idx}")
+    
+    if cap is None:
+        # Auto-scan: try index 1 (mobile cam / DroidCam) first, then 0
+        for idx in [1, 0, 2]:
+            c = cv2.VideoCapture(idx)
+            if c.isOpened():
+                r, f = c.read()
+                if r and f is not None:
+                    cap = c
+                    logger.info(f"🎥 Auto-detected active camera on port {idx} ({f.shape[1]}x{f.shape[0]})")
+                    break
+                c.release()
+
+    if cap is None or not cap.isOpened():
+        logger.warning("⚠️ No active camera stream found — using colour-bar test pattern")
         cap = None
 
     logger.info("🎥 Inference loop started")
