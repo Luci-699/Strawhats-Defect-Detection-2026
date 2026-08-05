@@ -271,8 +271,20 @@ async def inference_loop():
         # ── Grab frame ──────────────────────────────────────────────
         if cap is not None:
             ret, frame = cap.read()
-            if not ret:
-                frame = _test_pattern()
+            if not ret or frame is None:
+                # Attempt to re-open camera 1 / 0
+                for idx in [1, 0, 2]:
+                    c = cv2.VideoCapture(idx)
+                    if c.isOpened():
+                        r, f = c.read()
+                        if r and f is not None:
+                            if cap: cap.release()
+                            cap = c
+                            ret, frame = r, f
+                            break
+                        c.release()
+                if not ret or frame is None:
+                    frame = _test_pattern()
         else:
             frame = _test_pattern()
 
@@ -289,12 +301,20 @@ async def inference_loop():
         # ── Update counters & hardware trigger ────────────────────────
         global _last_hardware_verdict
         verdict = result.get("verdict", "IDLE")
+        mat = str(result.get("material", "STEEL"))
+        n_defects = len(result.get("detections", []))
+
         stats["total_scanned"] += 1
         if verdict == "FAIL":
-            stats["total_defects"] += len(result.get("detections", []))
+            stats["total_defects"] += n_defects
             stats["failed"]        += 1
         elif verdict == "PASS":
             stats["passed"]        += 1
+
+        # Trigger ESP32 hardware live during demo when verdict CHANGES
+        if verdict in ["PASS", "FAIL"] and verdict != _last_hardware_verdict:
+            _last_hardware_verdict = verdict
+            _send_esp32_command(mat, n_defects, verdict)
 
         # ── FPS ──────────────────────────────────────────────────────
         frame_count += 1
