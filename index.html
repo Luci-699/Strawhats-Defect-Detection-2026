@@ -782,8 +782,14 @@ async function runImageInference(file) {
 /* ─── Live demo ─────────────────────────────────────────────── */
 async function toggleLive() {
   if (liveMode) { stopLive(); return; }
-  // Use browser webcam for 100% Iriun Webcam / Mobile Cam compatibility
-  startWebcamLive();
+
+  // Check if API server is running (uses backend camera stream, bypassing browser permission locks)
+  const apiOnline = await checkAPI();
+  if (apiOnline) {
+    startAPILive();
+  } else {
+    startWebcamLive();
+  }
 }
 
 async function checkAPI() {
