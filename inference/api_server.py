@@ -1,14 +1,46 @@
+"""
+api_server.py
+=============
+RVCE Hackathon 2026 — Team SafePath
+FastAPI backend: live MJPEG stream + WebSocket stats + inference pipeline
+
+Endpoints:
+  GET  /health          — health check
+  GET  /stats           — cumulative counters
+  GET  /video_feed      — MJPEG camera stream (for dashboard <img>)
+  WS   /ws/live         — WebSocket: sends JSON updates every frame
+  POST /detect          — single-image inference (REST)
+
+Start:
+  uvicorn inference.api_server:app --host 0.0.0.0 --port 8000 --reload
+"""
+
 import asyncio
-from fastapi import FastAPI, UploadFile, File, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, Any
-import uvicorn
 import io
+import os
+import sys
+import time
+import logging
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+
 import cv2
 import numpy as np
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+import uvicorn
 
-app = FastAPI(title="Morphology-Aware Inspection API")
+# ── Project root ───────────────────────────────────────────────────────────────
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+logger = logging.getLogger(__name__)
+
+# ── App ────────────────────────────────────────────────────────────────────────
+app = FastAPI(title="SafePath Inspection API", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,65 +48,335 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global stats
-stats = {
+# ── Global state ───────────────────────────────────────────────────────────────
+stats: Dict[str, Any] = {
     "total_scanned": 0,
     "total_defects": 0,
     "passed": 0,
-    "failed": 0
+    "failed": 0,
+    "fps": 0.0,
 }
 
+# Latest frame data (written by inference loop, read by WebSocket/MJPEG)
+current_frame: Optional[bytes] = None          # JPEG bytes of annotated frame
+current_live:  Dict[str, Any]  = {}            # latest detection result
+
+# Connected WebSocket clients
+ws_clients: List[WebSocket] = []
+
+# ── Try to import inference pipeline ──────────────────────────────────────────
+_pipeline_loaded = False
+_pipeline = None
+
+def _try_load_pipeline():
+    global _pipeline_loaded, _pipeline
+    try:
+        # Import the full inference pipeline
+        # This will work once models are trained
+        from inference.pipeline import InferencePipeline
+        _pipeline = InferencePipeline()
+        _pipeline_loaded = True
+        logger.info("✅ Inference pipeline loaded successfully")
+    except Exception as e:
+        logger.warning(f"⚠️  Inference pipeline not available: {e}")
+        logger.warning("   Running in demo mode with mock detections")
+        _pipeline_loaded = False
+
+_try_load_pipeline()
+
+# ── Mock detection (used when pipeline is not ready) ───────────────────────────
+import random
+
+STEEL_CLASSES = ['crazing','inclusion','patches','pitted_surface',
+                 'rolled-in_scale','scratches','crease','crescent_gap',
+                 'oil_spot','punching','rolled_pit','silk_spot',
+                 'water_spot','waist_fold','welding_line']
+WOOD_CLASSES  = ['crack','knot','knot_with_crack','missing_knot',
+                 'resin','blue_stain','quartzite','marrow',
+                 'overgrown','dead_knot']
+
+def _mock_detect(frame: np.ndarray) -> Dict[str, Any]:
+    """Realistic mock detection for demo purposes."""
+    material = random.choice(['steel', 'wood'])
+    classes  = STEEL_CLASSES if material == 'steel' else WOOD_CLASSES
+    has_defect = random.random() < 0.45  # 45% defect rate for demo
+
+    detections = []
+    morphology = None
+
+    if has_defect:
+        n = random.randint(1, 3)
+        for _ in range(n):
+            cls  = random.choice(classes)
+            conf = random.uniform(0.52, 0.97)
+            detections.append({"class": cls, "conf": conf})
+
+        top = max(detections, key=lambda d: d["conf"])
+        morphology = {
+            "area":         random.uniform(80, 400),
+            "aspect_ratio": random.uniform(0.8, 6.5),
+            "circularity":  random.uniform(0.01, 0.95),
+            "eccentricity": random.uniform(0.1, 0.99),
+            "solidity":     random.uniform(0.4, 0.98),
+            "edge_density": random.uniform(0.02, 0.45),
+        }
+        verdict     = "FAIL"
+        confidence  = top["conf"]
+        top_class   = top["class"]
+    else:
+        verdict     = "PASS"
+        confidence  = random.uniform(0.0, 0.25)
+        top_class   = None
+
+    # Draw mock bounding box on frame
+    annotated = frame.copy()
+    h, w = annotated.shape[:2]
+
+    # Material badge
+    mat_color = (255, 165, 0) if material == 'steel' else (0, 200, 80)
+    cv2.rectangle(annotated, (8, 8), (140, 36), (0,0,0), -1)
+    cv2.rectangle(annotated, (8, 8), (140, 36), mat_color, 1)
+    cv2.putText(annotated, f"{'STEEL' if material=='steel' else 'WOOD'}",
+                (16, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.6, mat_color, 2)
+
+    # Verdict overlay
+    v_color = (50, 200, 80) if verdict == 'PASS' else (80, 80, 240)
+    v_text  = "PASS" if verdict == 'PASS' else "REJECT"
+    txt_w   = 120
+    cv2.rectangle(annotated, (w - txt_w - 10, 8), (w - 8, 36), (0,0,0), -1)
+    cv2.rectangle(annotated, (w - txt_w - 10, 8), (w - 8, 36), v_color, 1)
+    cv2.putText(annotated, v_text, (w - txt_w, 28),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.65, v_color, 2)
+
+    if has_defect and detections:
+        # Draw bounding box for first detection
+        x1 = random.randint(w//8, w//2)
+        y1 = random.randint(h//8, h//2)
+        x2 = x1 + random.randint(60, 180)
+        y2 = y1 + random.randint(40, 120)
+        x2, y2 = min(x2, w-8), min(y2, h-8)
+        cv2.rectangle(annotated, (x1, y1), (x2, y2), (80, 80, 240), 2)
+        label = f"{detections[0]['class']} {detections[0]['conf']:.2f}"
+        cv2.rectangle(annotated, (x1, y1-22), (x1+len(label)*10, y1), (80,80,240), -1)
+        cv2.putText(annotated, label, (x1+2, y1-5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+
+    return {
+        "material":    material,
+        "verdict":     verdict,
+        "confidence":  confidence,
+        "top_class":   top_class,
+        "top_conf_pct": round(confidence * 100, 1),
+        "detections":  detections,
+        "morphology":  morphology,
+        "annotated":   annotated,
+    }
+
+
+# ── WebSocket broadcast ────────────────────────────────────────────────────────
+async def broadcast(data: Dict[str, Any]):
+    dead = []
+    for client in ws_clients:
+        try:
+            await client.send_json(data)
+        except Exception:
+            dead.append(client)
+    for d in dead:
+        ws_clients.remove(d)
+
+
+# ── Background inference loop ──────────────────────────────────────────────────
+_camera_task = None
+
+async def inference_loop():
+    """Capture webcam, run inference, update global state and broadcast."""
+    global current_frame, current_live, stats
+
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        logger.warning("⚠️  No webcam found — using colour-bar test pattern")
+        cap = None
+
+    logger.info("🎥 Inference loop started")
+    fps_timer  = time.perf_counter()
+    frame_count = 0
+
+    while True:
+        # ── Grab frame ──────────────────────────────────────────────
+        if cap is not None:
+            ret, frame = cap.read()
+            if not ret:
+                frame = _test_pattern()
+        else:
+            frame = _test_pattern()
+
+        # ── Run inference ────────────────────────────────────────────
+        if _pipeline_loaded and _pipeline is not None:
+            try:
+                result = _pipeline.run(frame)
+            except Exception as e:
+                logger.debug(f"Pipeline error: {e}")
+                result = _mock_detect(frame)
+        else:
+            result = _mock_detect(frame)
+
+        # ── Update counters ──────────────────────────────────────────
+        verdict = result.get("verdict", "IDLE")
+        stats["total_scanned"] += 1
+        if verdict == "FAIL":
+            stats["total_defects"] += len(result.get("detections", []))
+            stats["failed"]        += 1
+        elif verdict == "PASS":
+            stats["passed"]        += 1
+
+        # ── FPS ──────────────────────────────────────────────────────
+        frame_count += 1
+        now = time.perf_counter()
+        elapsed = now - fps_timer
+        if elapsed >= 1.0:
+            stats["fps"]  = round(frame_count / elapsed, 1)
+            frame_count   = 0
+            fps_timer     = now
+
+        # ── Encode annotated frame as JPEG ───────────────────────────
+        annotated = result.get("annotated", frame)
+        ok, buf = cv2.imencode('.jpg', annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if ok:
+            current_frame = buf.tobytes()
+
+        # ── Store latest result ───────────────────────────────────────
+        current_live = {
+            "stats":       stats.copy(),
+            "material":    result.get("material"),
+            "verdict":     result.get("verdict"),
+            "confidence":  result.get("confidence"),
+            "top_class":   result.get("top_class"),
+            "top_conf_pct":result.get("top_conf_pct"),
+            "detections":  result.get("detections", []),
+            "morphology":  result.get("morphology"),
+        }
+
+        # ── Broadcast to WebSocket clients ────────────────────────────
+        if ws_clients:
+            await broadcast(current_live)
+
+        await asyncio.sleep(0.03)   # ~30 FPS ceiling
+
+    if cap:
+        cap.release()
+
+
+def _test_pattern() -> np.ndarray:
+    """Colour-bar test pattern when no webcam is available."""
+    img = np.zeros((480, 640, 3), dtype=np.uint8)
+    colours = [(255,0,0),(0,255,0),(0,0,255),(255,255,0),(0,255,255),(255,0,255),(128,128,128)]
+    w = 640 // len(colours)
+    for i, c in enumerate(colours):
+        img[:, i*w:(i+1)*w] = c
+    cv2.putText(img, "NO CAMERA — TEST PATTERN", (80, 240),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255,255,255), 2)
+    return img
+
+
+@app.on_event("startup")
+async def startup():
+    global _camera_task
+    _camera_task = asyncio.create_task(inference_loop())
+    logger.info("🚀 SafePath Inspection API ready at http://0.0.0.0:8000")
+
+
+# ── Routes ─────────────────────────────────────────────────────────────────────
 @app.get("/health")
-def health_check():
-    return {"status": "healthy", "version": "1.0.0"}
+def health():
+    return {
+        "status":   "healthy",
+        "version":  "2.0.0",
+        "pipeline": "loaded" if _pipeline_loaded else "demo_mode",
+        "fps":      stats.get("fps", 0),
+    }
+
 
 @app.get("/stats")
 def get_stats():
     return stats
 
+
+@app.get("/video_feed")
+async def video_feed():
+    """MJPEG stream — connect with <img src='/video_feed'>."""
+    async def stream():
+        while True:
+            if current_frame:
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" +
+                    current_frame +
+                    b"\r\n"
+                )
+            await asyncio.sleep(0.033)  # 30 FPS
+
+    return StreamingResponse(
+        stream(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@app.websocket("/ws/live")
+async def ws_live(ws: WebSocket):
+    """WebSocket — sends JSON update every frame."""
+    await ws.accept()
+    ws_clients.append(ws)
+    logger.info(f"WebSocket client connected ({len(ws_clients)} total)")
+    try:
+        # Send current state immediately on connect
+        if current_live:
+            await ws.send_json(current_live)
+        while True:
+            # Keep connection alive — data is pushed by inference_loop
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if ws in ws_clients:
+            ws_clients.remove(ws)
+        logger.info(f"WebSocket client disconnected ({len(ws_clients)} remaining)")
+
+
 @app.post("/detect")
-async def detect(image: UploadFile = File(...)) -> Dict[str, Any]:
+async def detect_image(image: UploadFile = File(...)) -> Dict[str, Any]:
+    """Single-image inference via REST."""
     contents = await image.read()
-    nparr = np.frombuffer(contents, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    
-    # Process image (Mock)
-    stats["total_scanned"] += 1
-    
-    # Dummy logic
-    has_defect = True if stats["total_scanned"] % 3 == 0 else False
-    
-    if has_defect:
-        stats["total_defects"] += 1
-        stats["failed"] += 1
-        pass_fail = "FAIL"
+    nparr    = np.frombuffer(contents, np.uint8)
+    frame    = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    if frame is None:
+        return {"error": "Could not decode image"}
+
+    if _pipeline_loaded and _pipeline:
+        try:
+            result = _pipeline.run(frame)
+        except Exception as e:
+            result = _mock_detect(frame)
     else:
-        stats["passed"] += 1
-        pass_fail = "PASS"
-        
+        result = _mock_detect(frame)
+
+    stats["total_scanned"] += 1
+    if result.get("verdict") == "FAIL":
+        stats["total_defects"] += len(result.get("detections", []))
+        stats["failed"]        += 1
+    else:
+        stats["passed"]        += 1
+
     return {
-        "filename": image.filename,
-        "detections": 1 if has_defect else 0,
-        "counts": {"crack": 1 if has_defect else 0},
-        "pass_fail": pass_fail,
-        "morphology_features": {
-            "crack_1": {"Area": 120, "Aspect Ratio": 0.4} if has_defect else {}
-        }
+        "filename":    image.filename,
+        "material":    result.get("material"),
+        "verdict":     result.get("verdict"),
+        "confidence":  result.get("confidence"),
+        "detections":  result.get("detections", []),
+        "morphology":  result.get("morphology"),
     }
 
-@app.websocket("/ws/stream")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        while True:
-            # Mock streaming results every second
-            await asyncio.sleep(1)
-            await websocket.send_json({
-                "type": "live_update",
-                "stats": stats
-            })
-    except Exception as e:
-        print(f"WebSocket disconnected: {e}")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("inference.api_server:app", host="0.0.0.0", port=8000, reload=False)

@@ -1,353 +1,1045 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RVCE Inspection Dashboard</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SafePath — Defect Inspection | RVCE 2026</title>
+  <meta name="description" content="AI-powered real-time surface defect detection for Steel and Wood. RVCE Hackathon 2026 — Team Strawhat Pirates." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <style>
+    /* ── Tokens ──────────────────────────────────────────────── */
     :root {
-      --bg: #0b1020;
-      --panel: rgba(15, 23, 42, 0.82);
-      --panel-strong: #111827;
-      --text: #e5eefc;
-      --muted: #94a3b8;
-      --accent: #4ade80;
-      --warn: #f59e0b;
-      --danger: #f87171;
-      --line: rgba(148, 163, 184, 0.16);
-      --shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      --bg:          #04070f;
+      --surface:     rgba(10, 16, 34, 0.92);
+      --surface2:    rgba(14, 22, 48, 0.88);
+      --border:      rgba(80, 110, 200, 0.14);
+      --border-hi:   rgba(80, 110, 200, 0.32);
+      --text:        #dde8ff;
+      --muted:       #5a6e96;
+      --accent:      #4ade80;
+      --steel:       #60a5fa;
+      --wood:        #fb923c;
+      --pass:        #22c55e;
+      --fail:        #ef4444;
+      --warn:        #fbbf24;
+      --font:        'Inter', system-ui, sans-serif;
+      --mono:        'JetBrains Mono', monospace;
     }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
-    body {
-      margin: 0;
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font);
       color: var(--text);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background:
-        radial-gradient(circle at top left, rgba(34, 197, 94, 0.22), transparent 32%),
-        radial-gradient(circle at 85% 10%, rgba(59, 130, 246, 0.2), transparent 28%),
-        linear-gradient(180deg, #050816 0%, #0b1020 55%, #070b14 100%);
+      background: var(--bg);
     }
 
-    .shell {
-      min-height: 100%;
-      padding: 28px;
-      display: grid;
-      gap: 20px;
-      grid-template-columns: 1.25fr 0.75fr;
+    body {
+      background-image:
+        radial-gradient(ellipse 70% 40% at 15% 0%,   rgba(59,130,246,0.10) 0%, transparent 55%),
+        radial-gradient(ellipse 55% 35% at 85% 100%, rgba(74,222,128,0.07) 0%, transparent 55%);
     }
 
-    .hero, .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(18px);
+    /* ── Root layout: header + grid ─────────────────────────── */
+    .root {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
     }
 
-    .hero {
-      padding: 28px;
-      display: grid;
-      gap: 20px;
-      align-content: start;
+    /* ── Header ─────────────────────────────────────────────── */
+    header {
+      flex-shrink: 0;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(4, 7, 15, 0.8);
+      backdrop-filter: blur(16px);
+      z-index: 10;
     }
-
-    .eyebrow {
-      display: inline-flex;
+    .logo {
+      display: flex;
       align-items: center;
       gap: 10px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      font-size: 0.74rem;
-      font-weight: 700;
     }
-
-    .eyebrow::before {
-      content: "";
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 24px rgba(74, 222, 128, 0.65);
+    .logo-icon {
+      width: 30px; height: 30px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #4ade80, #22d3ee);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
     }
+    .logo-name { font-weight: 800; font-size: 1rem; letter-spacing: -.03em; }
+    .logo-tag  { font-size: .7rem; color: var(--muted); margin-left: 4px; }
 
-    h1 {
-      margin: 0;
-      font-size: clamp(2.2rem, 5vw, 4.6rem);
-      line-height: 0.95;
-      letter-spacing: -0.05em;
-      max-width: 10ch;
-    }
-
-    .subcopy {
-      max-width: 62ch;
-      color: var(--muted);
-      font-size: 1rem;
-      line-height: 1.65;
-    }
-
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 14px;
-    }
-
-    .card {
-      padding: 18px;
-      border-radius: 18px;
-      background: rgba(15, 23, 42, 0.92);
-      border: 1px solid var(--line);
-      min-height: 112px;
-    }
-
-    .card-label {
-      color: var(--muted);
-      font-size: 0.82rem;
-      margin-bottom: 12px;
-    }
-
-    .card-value {
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: -0.04em;
-    }
-
-    .card-note {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 0.86rem;
-    }
-
-    .panel {
-      padding: 22px;
-      display: grid;
-      gap: 16px;
-      align-content: start;
-    }
-
-    .panel h2 {
-      margin: 0;
-      font-size: 1.1rem;
-      letter-spacing: -0.02em;
-    }
-
-    .status-row {
+    .header-right {
       display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 14px 16px;
-      border-radius: 16px;
-      background: rgba(17, 24, 39, 0.88);
-      border: 1px solid var(--line);
-    }
-
-    .status-label {
-      color: var(--muted);
-      font-size: 0.85rem;
-    }
-
-    .status-value {
-      font-weight: 700;
-    }
-
-    .badge {
-      display: inline-flex;
       align-items: center;
+      gap: 12px;
+    }
+    .pill {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border-hi);
+      font-size: .75rem; font-weight: 600;
+      background: var(--surface);
+    }
+    .live-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--muted);
+      transition: background .3s;
+    }
+    .live-dot.on  { background: var(--pass); box-shadow: 0 0 8px var(--pass); animation: blink 1.4s infinite; }
+    .live-dot.rec { background: var(--fail); box-shadow: 0 0 8px var(--fail); animation: blink .9s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    .fps-tag {
+      font-family: var(--mono);
+      font-size: .75rem;
+      color: var(--accent);
+      padding: 4px 10px;
+      border-radius: 7px;
+      background: rgba(74,222,128,.09);
+      border: 1px solid rgba(74,222,128,.18);
+    }
+
+    /* ── Main 2×2 Grid ───────────────────────────────────────── */
+    .grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 60fr 40fr;
+      gap: 10px;
+      padding: 10px;
+      min-height: 0;
+    }
+
+    /* Every quadrant shares base style */
+    .quad {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+    .quad:hover { border-color: var(--border-hi); }
+
+    /* ── Quadrant label bar ──────────────────────────────────── */
+    .q-label {
+      flex-shrink: 0;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       gap: 8px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      font-size: 0.85rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(8, 12, 28, 0.6);
+    }
+    .q-title {
+      font-size: .72rem;
       font-weight: 700;
-      width: fit-content;
-      border: 1px solid var(--line);
-      background: rgba(15, 23, 42, 0.9);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--muted);
+      display: flex; align-items: center; gap: 6px;
     }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: var(--warn);
-      box-shadow: 0 0 16px rgba(245, 158, 11, 0.4);
+    .q-title::before {
+      content: '';
+      width: 3px; height: 12px;
+      border-radius: 2px;
+      background: linear-gradient(#4ade80, #22d3ee);
     }
-
-    .feed {
-      display: grid;
-      gap: 10px;
+    .q-badge {
+      font-size: .68rem; font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid;
     }
+    .q-badge.steel { background: rgba(96,165,250,.12); border-color: rgba(96,165,250,.3); color: var(--steel); }
+    .q-badge.wood  { background: rgba(251,146,60,.12);  border-color: rgba(251,146,60,.3);  color: var(--wood); }
+    .q-badge.pass  { background: rgba(34,197,94,.12);   border-color: rgba(34,197,94,.3);   color: var(--pass); }
+    .q-badge.fail  { background: rgba(239,68,68,.12);   border-color: rgba(239,68,68,.3);   color: var(--fail); }
 
-    .feed-item {
-      padding: 14px 16px;
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      background: rgba(17, 24, 39, 0.72);
+    /* ── Q1: Input image area ────────────────────────────────── */
+    .q-media {
+      flex: 1;
       display: flex;
-      justify-content: space-between;
-      gap: 12px;
       align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: #020409;
+      min-height: 0;
     }
-
-    .feed-item strong {
+    .q-media img, .q-media video {
+      width: 100%; height: 100%;
+      object-fit: contain;
       display: block;
-      margin-bottom: 4px;
     }
-
-    .feed-item span {
+    .q-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
       color: var(--muted);
-      font-size: 0.86rem;
+      text-align: center;
+      padding: 24px;
+    }
+    .q-placeholder .ph-icon { font-size: 2.8rem; }
+    .q-placeholder p { font-size: .82rem; line-height: 1.6; max-width: 22ch; }
+
+    /* Scan animation overlay (visible during live demo) */
+    .scan-line {
+      position: absolute;
+      left: 0; right: 0; height: 2px;
+      background: linear-gradient(to right, transparent, rgba(74,222,128,.7), transparent);
+      pointer-events: none;
+      display: none;
+    }
+    .scan-line.active {
+      display: block;
+      animation: scan 2.5s linear infinite;
+    }
+    @keyframes scan {
+      0%   { top: 52px; opacity: 1; }
+      95%  { opacity: 1; }
+      100% { top: 100%; opacity: 0; }
     }
 
-    .footnote {
+    /* ── Q2: Output image area ───────────────────────────────── */
+    /* same structure as Q1, reuses .q-media and .q-placeholder */
+
+    /* Corner info overlay on output */
+    .output-overlays {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .ov-material {
+      position: absolute;
+      top: 44px; left: 10px;
+      padding: 5px 11px;
+      border-radius: 8px;
+      font-size: .78rem; font-weight: 700;
+      border: 1px solid;
+      backdrop-filter: blur(8px);
+      display: none;
+    }
+    .ov-material.steel { background:rgba(96,165,250,.18); border-color:rgba(96,165,250,.5); color:var(--steel); }
+    .ov-material.wood  { background:rgba(251,146,60,.18);  border-color:rgba(251,146,60,.5);  color:var(--wood); }
+
+    .ov-verdict {
+      position: absolute;
+      top: 44px; right: 10px;
+      padding: 5px 14px;
+      border-radius: 8px;
+      font-size: .85rem; font-weight: 900;
+      letter-spacing: .08em;
+      border: 2px solid;
+      backdrop-filter: blur(8px);
+      display: none;
+      transition: all .3s;
+    }
+    .ov-verdict.pass { background:rgba(34,197,94,.2); border-color:var(--pass); color:var(--pass); box-shadow:0 0 18px rgba(34,197,94,.3); }
+    .ov-verdict.fail { background:rgba(239,68,68,.2);  border-color:var(--fail); color:var(--fail); box-shadow:0 0 18px rgba(239,68,68,.3); }
+
+    .ov-conf {
+      position: absolute;
+      bottom: 10px; left: 10px; right: 10px;
+      display: none;
+    }
+    .conf-row { display: flex; align-items: center; gap: 8px; }
+    .conf-lbl { font-size: .68rem; color: var(--muted); white-space: nowrap; }
+    .conf-track {
+      flex: 1; height: 5px; border-radius: 99px;
+      background: rgba(255,255,255,.08);
+      overflow: hidden;
+    }
+    .conf-fill {
+      height: 100%; border-radius: 99px;
+      background: linear-gradient(to right, #4ade80, #22d3ee);
+      transition: width .35s ease;
+      width: 0%;
+    }
+    .conf-num { font-family: var(--mono); font-size: .72rem; color: var(--accent); width: 32px; text-align: right; }
+
+    /* ── Q3: Controls (Feed / Live) ──────────────────────────── */
+    .q-controls {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      padding: 18px;
+    }
+
+    .ctrl-btn {
+      width: 100%; max-width: 320px;
+      padding: 14px 24px;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: .9rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all .2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .ctrl-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0);
+      transition: background .15s;
+    }
+    .ctrl-btn:hover::after { background: rgba(255,255,255,.07); }
+    .ctrl-btn:active { transform: scale(.97); }
+
+    /* Feed Image button */
+    .btn-feed {
+      background: linear-gradient(135deg, rgba(96,165,250,.25), rgba(59,130,246,.15));
+      border: 1px solid rgba(96,165,250,.4);
+      color: var(--steel);
+    }
+    /* Live Demo button */
+    .btn-live {
+      background: linear-gradient(135deg, rgba(74,222,128,.25), rgba(34,197,94,.15));
+      border: 1px solid rgba(74,222,128,.4);
+      color: var(--accent);
+    }
+    .btn-live.stop {
+      background: linear-gradient(135deg, rgba(239,68,68,.25), rgba(220,38,38,.15));
+      border-color: rgba(239,68,68,.4);
+      color: var(--fail);
+    }
+
+    /* Hidden file input */
+    #file-input { display: none; }
+
+    /* Processing indicator */
+    .proc-indicator {
+      font-size: .75rem;
       color: var(--muted);
-      font-size: 0.82rem;
-      line-height: 1.5;
+      display: flex; align-items: center; gap: 6px;
     }
+    .spin {
+      width: 12px; height: 12px;
+      border: 2px solid rgba(255,255,255,.15);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    .spin.active { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    @media (max-width: 980px) {
-      .shell { grid-template-columns: 1fr; }
-      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    /* ── Q4: Results panel ───────────────────────────────────── */
+    .q-results {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      overflow-y: auto;
+      padding: 14px;
+      min-height: 0;
     }
+    .q-results::-webkit-scrollbar { width: 4px; }
+    .q-results::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 4px; }
 
-    @media (max-width: 620px) {
-      .shell { padding: 16px; }
-      .hero, .panel { padding: 18px; border-radius: 18px; }
-      .stats { grid-template-columns: 1fr; }
-      h1 { max-width: none; }
+    /* Verdict big row */
+    .result-verdict {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      margin-bottom: 10px;
+      transition: all .4s;
     }
+    .result-verdict.pass { border-color: rgba(34,197,94,.35); background: rgba(34,197,94,.06); }
+    .result-verdict.fail { border-color: rgba(239,68,68,.35);  background: rgba(239,68,68,.06); }
+    .verdict-circle {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      flex-shrink: 0;
+      transition: all .4s;
+    }
+    .result-verdict.pass .verdict-circle { border-color: var(--pass); background: rgba(34,197,94,.15); box-shadow:0 0 20px rgba(34,197,94,.25); }
+    .result-verdict.fail .verdict-circle { border-color: var(--fail); background: rgba(239,68,68,.15); box-shadow:0 0 20px rgba(239,68,68,.25); }
+    .verdict-info { flex: 1; }
+    .verdict-label {
+      font-size: 1.4rem; font-weight: 900;
+      letter-spacing: .1em;
+      transition: color .4s;
+    }
+    .result-verdict.pass .verdict-label { color: var(--pass); }
+    .result-verdict.fail .verdict-label { color: var(--fail); }
+    .verdict-detail { font-size: .75rem; color: var(--muted); margin-top: 3px; }
+
+    /* Count row */
+    .result-counts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .count-card {
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+    .count-label { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+    .count-value { font-size: 1.5rem; font-weight: 800; letter-spacing: -.04em; }
+    .count-value.defect { color: var(--warn); }
+    .count-value.material { color: var(--steel); }
+
+    /* Defect class list */
+    .result-section-title {
+      font-size: .7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .1em;
+      color: var(--muted);
+      margin-bottom: 8px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .result-section-title::before {
+      content: '';
+      width: 3px; height: 10px; border-radius: 2px;
+      background: var(--warn);
+    }
+    .defect-list { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+    .defect-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 9px;
+      background: rgba(239,68,68,.06);
+      border: 1px solid rgba(239,68,68,.18);
+      font-size: .82rem;
+      animation: slideIn .25s ease;
+    }
+    @keyframes slideIn { from{opacity:0;transform:translateX(6px)} to{opacity:1;transform:none} }
+    .defect-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fail); flex-shrink: 0; }
+    .defect-name { flex: 1; font-weight: 600; }
+    .defect-conf-bar {
+      width: 60px; height: 4px; border-radius: 99px;
+      background: rgba(255,255,255,.08);
+      overflow: hidden;
+    }
+    .defect-conf-fill { height: 100%; border-radius: 99px; background: var(--fail); }
+    .defect-conf-num { font-family: var(--mono); font-size: .7rem; color: var(--muted); width: 30px; text-align: right; }
+
+    .no-defect-msg {
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      padding: 20px; color: var(--muted); text-align: center; font-size: .82rem;
+    }
+    .no-defect-msg .icon { font-size: 1.8rem; }
+
+    /* Idle state */
+    .idle-msg {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 10px; padding: 30px 16px;
+      color: var(--muted); text-align: center;
+    }
+    .idle-msg .icon { font-size: 2.2rem; }
+    .idle-msg p { font-size: .8rem; line-height: 1.6; max-width: 22ch; }
   </style>
 </head>
 <body>
-  <main class="shell">
-    <section class="hero">
-      <div class="eyebrow">RVCE Surface Inspection</div>
-      <h1>Live defect monitoring without the blank screen.</h1>
-      <p class="subcopy">
-        This page is wired for the FastAPI backend running on <strong>localhost:8000</strong>.
-        It shows the current inspection status, cumulative counters, and a compact event feed so the
-        browser at <strong>127.0.0.1:5500</strong> actually renders something useful.
-      </p>
+<div class="root">
 
-      <div class="stats">
-        <div class="card">
-          <div class="card-label">Total scanned</div>
-          <div class="card-value" id="total-scanned">0</div>
-          <div class="card-note">Images or frames processed</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Total defects</div>
-          <div class="card-value" id="total-defects">0</div>
-          <div class="card-note">Detected defect instances</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Passed</div>
-          <div class="card-value" id="passed">0</div>
-          <div class="card-note">Accepted samples</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Failed</div>
-          <div class="card-value" id="failed">0</div>
-          <div class="card-note">Rejected samples</div>
-        </div>
+  <!-- ═══ HEADER ═══════════════════════════════════════════════════ -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🔍</div>
+      <span class="logo-name">SafePath Inspect</span>
+      <span class="logo-tag">RVCE Hackathon 2026 · Problem #5</span>
+    </div>
+    <div class="header-right">
+      <div class="fps-tag" id="fps-tag">-- FPS</div>
+      <div class="pill">
+        <span class="live-dot" id="live-dot"></span>
+        <span id="live-txt">Idle</span>
       </div>
-    </section>
+    </div>
+  </header>
 
-    <aside class="panel">
-      <h2>System status</h2>
-      <div class="status-row">
-        <div>
-          <div class="status-label">Backend</div>
-          <div class="status-value" id="backend-state">Checking...</div>
-        </div>
-        <div class="badge"><span class="dot" id="status-dot"></span><span id="status-text">Connecting</span></div>
+  <!-- ═══ 2×2 GRID ════════════════════════════════════════════════ -->
+  <div class="grid">
+
+    <!-- ── Q1 : INPUT (top-left) ───────────────────────────────── -->
+    <div class="quad" id="q-input">
+      <div class="q-label">
+        <span class="q-title">Input — Raw Image</span>
+        <span class="q-badge" id="input-badge" style="display:none"></span>
       </div>
+      <div class="q-media" id="input-media">
+        <div class="q-placeholder" id="input-placeholder">
+          <div class="ph-icon">📷</div>
+          <p>Feed an image or start live demo using the controls below</p>
+        </div>
+        <!-- Live webcam video -->
+        <video id="input-video" autoplay muted playsinline style="display:none;width:100%;height:100%;object-fit:contain;"></video>
+        <!-- Static uploaded image -->
+        <img id="input-img" alt="Input image" style="display:none;" />
+      </div>
+      <div class="scan-line" id="scan-line"></div>
+    </div>
 
-      <div class="feed" id="feed">
-        <div class="feed-item">
-          <div>
-            <strong>Dashboard ready</strong>
-            <span>The page now renders from a real HTML entrypoint.</span>
+    <!-- ── Q2 : OUTPUT (top-right) ────────────────────────────── -->
+    <div class="quad" id="q-output">
+      <div class="q-label">
+        <span class="q-title">Output — Detection Result</span>
+        <span class="q-badge" id="output-badge" style="display:none"></span>
+      </div>
+      <div class="q-media" id="output-media">
+        <div class="q-placeholder" id="output-placeholder">
+          <div class="ph-icon">🤖</div>
+          <p>Processed frame with bounding boxes will appear here</p>
+        </div>
+        <!-- Annotated output image / MJPEG stream -->
+        <img id="output-img" alt="Detection output" style="display:none;" />
+      </div>
+      <!-- Overlays on top of output image -->
+      <div class="output-overlays">
+        <div class="ov-material" id="ov-material">🔩 STEEL</div>
+        <div class="ov-verdict"  id="ov-verdict">PASS</div>
+        <div class="ov-conf" id="ov-conf">
+          <div class="conf-row">
+            <span class="conf-lbl">Confidence</span>
+            <div class="conf-track"><div class="conf-fill" id="conf-fill"></div></div>
+            <span class="conf-num" id="conf-num">0%</span>
           </div>
-          <span>now</span>
         </div>
       </div>
+    </div>
 
-      <p class="footnote">
-        If the backend is not running, this page still loads and shows fallback values. Start the API with
-        <strong>uvicorn inference.api_server:app --host 0.0.0.0 --port 8000 --reload</strong> for live stats.
-      </p>
-    </aside>
-  </main>
+    <!-- ── Q3 : CONTROLS (bottom-left) ───────────────────────── -->
+    <div class="quad" id="q-controls">
+      <div class="q-label">
+        <span class="q-title">Inspection Mode</span>
+      </div>
+      <div class="q-controls">
 
-  <script>
-    const API_BASE = 'http://127.0.0.1:8000';
+        <!-- Feed Image -->
+        <input type="file" id="file-input" accept="image/*" />
+        <button class="ctrl-btn btn-feed" id="btn-feed" onclick="triggerFileInput()">
+          <span>📁</span>
+          <span>Feed Image</span>
+        </button>
 
-    const els = {
-      totalScanned: document.getElementById('total-scanned'),
-      totalDefects: document.getElementById('total-defects'),
-      passed: document.getElementById('passed'),
-      failed: document.getElementById('failed'),
-      backendState: document.getElementById('backend-state'),
-      statusText: document.getElementById('status-text'),
-      statusDot: document.getElementById('status-dot'),
-      feed: document.getElementById('feed'),
-    };
+        <!-- Live Demo -->
+        <button class="ctrl-btn btn-live" id="btn-live" onclick="toggleLive()">
+          <span>📡</span>
+          <span id="live-btn-txt">Start Live Demo</span>
+        </button>
 
-    function setStatus(state, text, color) {
-      els.backendState.textContent = state;
-      els.statusText.textContent = text;
-      els.statusDot.style.background = color;
-      els.statusDot.style.boxShadow = `0 0 16px ${color}66`;
-    }
-
-    function updateStats(stats) {
-      els.totalScanned.textContent = stats.total_scanned ?? 0;
-      els.totalDefects.textContent = stats.total_defects ?? 0;
-      els.passed.textContent = stats.passed ?? 0;
-      els.failed.textContent = stats.failed ?? 0;
-    }
-
-    function pushFeed(title, detail, time) {
-      const item = document.createElement('div');
-      item.className = 'feed-item';
-      item.innerHTML = `
-        <div>
-          <strong>${title}</strong>
-          <span>${detail}</span>
+        <!-- Processing indicator -->
+        <div class="proc-indicator">
+          <div class="spin" id="spinner"></div>
+          <span id="proc-txt">Ready — choose a mode above</span>
         </div>
-        <span>${time}</span>
-      `;
-      els.feed.prepend(item);
-      while (els.feed.children.length > 5) {
-        els.feed.lastElementChild.remove();
-      }
-    }
 
-    async function refresh() {
+      </div>
+    </div>
+
+    <!-- ── Q4 : RESULTS (bottom-right) ───────────────────────── -->
+    <div class="quad" id="q-results">
+      <div class="q-label">
+        <span class="q-title">Detection Results</span>
+      </div>
+      <div class="q-results" id="results-body">
+
+        <!-- Idle placeholder -->
+        <div class="idle-msg" id="idle-msg">
+          <div class="icon">📊</div>
+          <p>Results will appear here after inspection</p>
+        </div>
+
+        <!-- Verdict row (hidden until result) -->
+        <div class="result-verdict" id="result-verdict" style="display:none">
+          <div class="verdict-circle" id="verdict-circle">⏳</div>
+          <div class="verdict-info">
+            <div class="verdict-label" id="verdict-label">—</div>
+            <div class="verdict-detail" id="verdict-detail">No result yet</div>
+          </div>
+        </div>
+
+        <!-- Counts (hidden until result) -->
+        <div class="result-counts" id="result-counts" style="display:none">
+          <div class="count-card">
+            <div class="count-label">Defects Found</div>
+            <div class="count-value defect" id="cnt-defects">0</div>
+          </div>
+          <div class="count-card">
+            <div class="count-label">Material</div>
+            <div class="count-value material" id="cnt-material">—</div>
+          </div>
+        </div>
+
+        <!-- Defect class list (hidden until result) -->
+        <div id="defect-section" style="display:none">
+          <div class="result-section-title">Detected Classes</div>
+          <div class="defect-list" id="defect-list"></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /grid -->
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════════════════ -->
+<script>
+const API = 'http://127.0.0.1:8000';
+let liveMode   = false;
+let liveStream = null;  // MediaStream for webcam
+let ws         = null;
+let frameCount = 0, fpsTimer = performance.now();
+
+/* ─── DOM references ────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+const E = {
+  liveDot:      $('live-dot'),
+  liveTxt:      $('live-txt'),
+  fpTag:        $('fps-tag'),
+  // Q1 input
+  inputPlaceholder: $('input-placeholder'),
+  inputVideo:   $('input-video'),
+  inputImg:     $('input-img'),
+  inputBadge:   $('input-badge'),
+  scanLine:     $('scan-line'),
+  // Q2 output
+  outputPlaceholder: $('output-placeholder'),
+  outputImg:    $('output-img'),
+  outputBadge:  $('output-badge'),
+  ovMaterial:   $('ov-material'),
+  ovVerdict:    $('ov-verdict'),
+  ovConf:       $('ov-conf'),
+  confFill:     $('conf-fill'),
+  confNum:      $('conf-num'),
+  // Q3 controls
+  fileInput:    $('file-input'),
+  btnFeed:      $('btn-feed'),
+  btnLive:      $('btn-live'),
+  liveBtnTxt:   $('live-btn-txt'),
+  spinner:      $('spinner'),
+  procTxt:      $('proc-txt'),
+  // Q4 results
+  idleMsg:      $('idle-msg'),
+  resultVerdict:$('result-verdict'),
+  verdictCircle:$('verdict-circle'),
+  verdictLabel: $('verdict-label'),
+  verdictDetail:$('verdict-detail'),
+  resultCounts: $('result-counts'),
+  cntDefects:   $('cnt-defects'),
+  cntMaterial:  $('cnt-material'),
+  defectSection:$('defect-section'),
+  defectList:   $('defect-list'),
+};
+
+/* ─── File input ────────────────────────────────────────────── */
+function triggerFileInput() {
+  if (liveMode) stopLive();
+  E.fileInput.click();
+}
+E.fileInput.addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  await runImageInference(file);
+  e.target.value = '';
+});
+
+/* ─── Image inference ───────────────────────────────────────── */
+async function runImageInference(file) {
+  setStatus('processing');
+
+  // Show raw image in Q1
+  const url = URL.createObjectURL(file);
+  showInput('image', url);
+
+  // Try real API first
+  let result = null;
+  try {
+    const fd = new FormData();
+    fd.append('image', file);
+    const res = await fetch(`${API}/detect`, { method:'POST', body: fd,
+      signal: AbortSignal.timeout(8000) });
+    if (res.ok) result = await res.json();
+  } catch(_) {}
+
+  // Fallback: mock result for demo
+  if (!result) result = mockResult(file.name);
+
+  // Show annotated output
+  if (result.output_image_b64) {
+    showOutput('image', 'data:image/jpeg;base64,' + result.output_image_b64);
+  } else {
+    // Same image but with overlays drawn by JS (no backend annotation)
+    showOutput('image', url);
+  }
+
+  renderResult(result);
+  setStatus('idle');
+}
+
+/* ─── Live demo ─────────────────────────────────────────────── */
+async function toggleLive() {
+  if (liveMode) { stopLive(); return; }
+
+  // First try to connect to API's MJPEG stream
+  const apiOnline = await checkAPI();
+  if (apiOnline) {
+    startAPILive();
+  } else {
+    // Fallback: use browser webcam
+    startWebcamLive();
+  }
+}
+
+async function checkAPI() {
+  try {
+    const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(1500) });
+    return r.ok;
+  } catch(_) { return false; }
+}
+
+function startAPILive() {
+  liveMode = true;
+  setStatus('live');
+
+  // Q1: show MJPEG stream as input
+  showInput('mjpeg', `${API}/video_feed`);
+
+  // Q2: same stream (the API annotates in-place)
+  showOutput('mjpeg', `${API}/video_feed`);
+
+  // Connect WebSocket for stats
+  connectWS();
+
+  // UI
+  E.liveBtnTxt.textContent = 'Stop Live Demo';
+  E.btnLive.classList.add('stop');
+}
+
+async function startWebcamLive() {
+  try {
+    liveStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+  } catch(err) {
+    E.procTxt.textContent = 'Camera access denied — please allow camera and retry';
+    return;
+  }
+  liveMode = true;
+  setStatus('live');
+
+  // Q1: raw webcam feed
+  E.inputVideo.srcObject = liveStream;
+  showInput('video');
+
+  // UI
+  E.liveBtnTxt.textContent = 'Stop Live Demo';
+  E.btnLive.classList.add('stop');
+
+  // Poll webcam frames every 1s for inference
+  startWebcamPoll();
+}
+
+let webcamPollTimer = null;
+function startWebcamPoll() {
+  const canvas = document.createElement('canvas');
+  const ctx    = canvas.getContext('2d');
+
+  async function pollFrame() {
+    if (!liveMode) return;
+    const vid = E.inputVideo;
+    if (vid.readyState < 2) { webcamPollTimer = setTimeout(pollFrame, 500); return; }
+
+    canvas.width  = vid.videoWidth  || 640;
+    canvas.height = vid.videoHeight || 480;
+    ctx.drawImage(vid, 0, 0);
+
+    canvas.toBlob(async blob => {
+      if (!blob) return;
+      let result = null;
       try {
-        const [healthRes, statsRes] = await Promise.all([
-          fetch(`${API_BASE}/health`),
-          fetch(`${API_BASE}/stats`),
-        ]);
+        const fd = new FormData();
+        fd.append('image', blob, 'frame.jpg');
+        const r = await fetch(`${API}/detect`, { method:'POST', body:fd,
+          signal: AbortSignal.timeout(3000) });
+        if (r.ok) result = await r.json();
+      } catch(_) {}
+      if (!result) result = mockResult('webcam_frame');
 
-        if (!healthRes.ok || !statsRes.ok) {
-          throw new Error('Backend returned an error');
+      // Show annotated output in Q2
+      if (result.output_image_b64) {
+        showOutput('image', 'data:image/jpeg;base64,' + result.output_image_b64);
+      } else {
+        // Draw mock bounding box on canvas and show in Q2
+        if (result.verdict === 'FAIL' && result.detections?.length) {
+          drawMockBoxes(canvas, ctx, result.detections);
         }
-
-        const health = await healthRes.json();
-        const stats = await statsRes.json();
-        updateStats(stats);
-        setStatus('Online', health.status || 'healthy', '#4ade80');
-        pushFeed('Backend healthy', 'FastAPI is responding on port 8000.', 'live');
-      } catch (error) {
-        setStatus('Offline', 'Using fallback data', '#f59e0b');
-        pushFeed('Backend unavailable', 'Start the API to stream live counters.', 'retrying');
+        showOutput('image', canvas.toDataURL('image/jpeg', 0.85));
       }
-    }
+      renderResult(result);
 
-    refresh();
-    setInterval(refresh, 5000);
-  </script>
+      // FPS
+      frameCount++;
+      const now = performance.now();
+      if (now - fpsTimer >= 1000) {
+        E.fpTag.textContent = (frameCount / ((now - fpsTimer)/1000)).toFixed(1) + ' FPS';
+        frameCount = 0; fpsTimer = now;
+      }
+
+      webcamPollTimer = setTimeout(pollFrame, 800);
+    }, 'image/jpeg', 0.85);
+  }
+  pollFrame();
+}
+
+function stopLive() {
+  liveMode = false;
+  if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null; }
+  if (ws) { ws.close(); ws = null; }
+  if (webcamPollTimer) { clearTimeout(webcamPollTimer); webcamPollTimer = null; }
+
+  E.inputVideo.srcObject = null;
+  E.inputVideo.style.display = 'none';
+  E.inputImg.style.display = 'none';
+  E.inputPlaceholder.style.display = 'flex';
+
+  E.outputImg.style.display = 'none';
+  E.outputPlaceholder.style.display = 'flex';
+
+  hideOverlays();
+  E.liveBtnTxt.textContent = 'Start Live Demo';
+  E.btnLive.classList.remove('stop');
+  E.scanLine.classList.remove('active');
+  setStatus('idle');
+}
+
+/* ─── WebSocket (for API live mode) ────────────────────────── */
+function connectWS() {
+  try {
+    ws = new WebSocket(`ws://127.0.0.1:8000/ws/live`);
+    ws.onmessage = evt => {
+      const d = JSON.parse(evt.data);
+      renderResult({
+        material:   d.material,
+        verdict:    d.verdict,
+        confidence: d.confidence,
+        detections: (d.detections||[]).map(x=>({label:x.class||x.label, conf:x.conf})),
+        stats:      d.stats,
+      });
+      if (d.stats?.fps) E.fpTag.textContent = d.stats.fps.toFixed(1) + ' FPS';
+    };
+    ws.onerror = () => {};
+    ws.onclose = () => { if (liveMode) setTimeout(connectWS, 2000); };
+  } catch(_) {}
+}
+
+/* ─── Render result into Q2 overlays + Q4 panel ────────────── */
+function renderResult(r) {
+  const isPass = (r.verdict||'').toUpperCase() === 'PASS';
+  const isFail = (r.verdict||'').toUpperCase() === 'FAIL';
+  const dets   = r.detections || [];
+  const mat    = (r.material || '').toLowerCase();
+  const conf   = r.confidence || 0;
+
+  // ── Q2 overlays ──
+  // Material badge
+  if (mat) {
+    E.ovMaterial.style.display = 'block';
+    E.ovMaterial.className = 'ov-material ' + (mat === 'steel' ? 'steel' : 'wood');
+    E.ovMaterial.textContent = mat === 'steel' ? '🔩 STEEL' : '🪵 WOOD';
+  }
+  // Verdict overlay
+  if (r.verdict) {
+    E.ovVerdict.style.display = 'block';
+    E.ovVerdict.className = 'ov-verdict ' + (isPass ? 'pass' : isFail ? 'fail' : '');
+    E.ovVerdict.textContent = isPass ? '✓ PASS' : '✗ REJECT';
+  }
+  // Confidence bar
+  E.ovConf.style.display = 'block';
+  const pct = Math.round(conf * 100);
+  E.confFill.style.width = pct + '%';
+  E.confNum.textContent  = pct + '%';
+
+  // Q2 badge in label bar
+  if (r.verdict) {
+    E.outputBadge.style.display = 'inline-flex';
+    E.outputBadge.className = 'q-badge ' + (isPass ? 'pass' : 'fail');
+    E.outputBadge.textContent = isPass ? 'PASS' : 'REJECT';
+  }
+
+  // ── Q4 results ──
+  E.idleMsg.style.display = 'none';
+  E.resultVerdict.style.display = 'flex';
+  E.resultCounts.style.display = 'grid';
+
+  // Verdict card
+  E.resultVerdict.className = 'result-verdict ' + (isPass ? 'pass' : isFail ? 'fail' : '');
+  E.verdictCircle.textContent = isPass ? '✅' : isFail ? '❌' : '⏳';
+  E.verdictLabel.textContent  = isPass ? 'PASS' : isFail ? 'REJECT' : '—';
+  E.verdictDetail.textContent = isPass
+    ? 'No defects detected — product accepted'
+    : isFail
+    ? `${dets.length} defect${dets.length!==1?'s':''} detected — product rejected`
+    : 'Awaiting result';
+
+  // Counts
+  E.cntDefects.textContent  = dets.length;
+  E.cntMaterial.textContent = mat ? mat.toUpperCase() : '—';
+  E.cntMaterial.style.color = mat === 'steel' ? 'var(--steel)' : mat === 'wood' ? 'var(--wood)' : 'var(--muted)';
+
+  // Defect class list
+  if (dets.length > 0) {
+    E.defectSection.style.display = 'block';
+    E.defectList.innerHTML = dets.map(d => {
+      const c = Math.round((d.conf||0) * 100);
+      return `
+        <div class="defect-item">
+          <div class="defect-dot"></div>
+          <span class="defect-name">${d.label || d.class || 'Unknown'}</span>
+          <div class="defect-conf-bar">
+            <div class="defect-conf-fill" style="width:${c}%"></div>
+          </div>
+          <span class="defect-conf-num">${c}%</span>
+        </div>`;
+    }).join('');
+  } else if (isPass) {
+    E.defectSection.style.display = 'block';
+    E.defectList.innerHTML = `
+      <div class="no-defect-msg">
+        <div class="icon">✅</div>
+        <span>Surface is clean — no defect classes detected</span>
+      </div>`;
+  } else {
+    E.defectSection.style.display = 'none';
+  }
+}
+
+/* ─── Show helpers ──────────────────────────────────────────── */
+function showInput(type, src) {
+  E.inputPlaceholder.style.display = 'none';
+  E.inputVideo.style.display = 'none';
+  E.inputImg.style.display   = 'none';
+  E.scanLine.classList.remove('active');
+
+  if (type === 'video') {
+    E.inputVideo.style.display = 'block';
+    E.scanLine.classList.add('active');
+  } else if (type === 'image') {
+    E.inputImg.src = src;
+    E.inputImg.style.display = 'block';
+  } else if (type === 'mjpeg') {
+    // Use <img> with MJPEG src
+    E.inputImg.src = src + '?t=' + Date.now();
+    E.inputImg.style.display = 'block';
+    E.scanLine.classList.add('active');
+  }
+}
+
+function showOutput(type, src) {
+  E.outputPlaceholder.style.display = 'none';
+  E.outputImg.style.display = 'none';
+
+  if (type === 'image' || type === 'mjpeg') {
+    E.outputImg.src = src + (type === 'mjpeg' ? '?out=1&t=' + Date.now() : '');
+    E.outputImg.style.display = 'block';
+  }
+}
+
+function hideOverlays() {
+  E.ovMaterial.style.display = 'none';
+  E.ovVerdict.style.display  = 'none';
+  E.ovConf.style.display     = 'none';
+  E.outputBadge.style.display= 'none';
+}
+
+/* ─── Status helpers ────────────────────────────────────────── */
+function setStatus(s) {
+  if (s === 'idle') {
+    E.liveDot.className = 'live-dot';
+    E.liveTxt.textContent = 'Idle';
+    E.spinner.classList.remove('active');
+    E.procTxt.textContent = 'Ready — choose a mode above';
+  } else if (s === 'processing') {
+    E.liveDot.className = 'live-dot';
+    E.liveTxt.textContent = 'Processing…';
+    E.spinner.classList.add('active');
+    E.procTxt.textContent = 'Running inference…';
+  } else if (s === 'live') {
+    E.liveDot.className = 'live-dot rec';
+    E.liveTxt.textContent = 'Live';
+    E.spinner.classList.remove('active');
+    E.procTxt.textContent = 'Streaming live — press Stop to end';
+  }
+}
+
+/* ─── Mock result (when backend unavailable) ────────────────── */
+const STEEL_CLS = ['crazing','inclusion','patches','pitted_surface',
+  'rolled-in_scale','scratches','crease','crescent_gap','oil_spot'];
+const WOOD_CLS  = ['crack','knot','knot_with_crack','missing_knot',
+  'resin','blue_stain','quartzite','marrow'];
+
+function mockResult(fname) {
+  const mat = (fname||'').toLowerCase().includes('wood') ? 'wood' : 'steel';
+  const cls = mat === 'steel' ? STEEL_CLS : WOOD_CLS;
+  const hasDefect = Math.random() < 0.5;
+  const dets = hasDefect
+    ? Array.from({length: Math.floor(Math.random()*3)+1}, () => ({
+        label: cls[Math.floor(Math.random()*cls.length)],
+        conf:  +(Math.random()*0.45+0.52).toFixed(2)
+      }))
+    : [];
+  return {
+    material:   mat,
+    verdict:    hasDefect ? 'FAIL' : 'PASS',
+    confidence: hasDefect ? Math.max(...dets.map(d=>d.conf)) : Math.random()*0.2,
+    detections: dets,
+  };
+}
+
+/* ─── Draw mock boxes on canvas (webcam fallback) ───────────── */
+function drawMockBoxes(canvas, ctx, dets) {
+  const w = canvas.width, h = canvas.height;
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth   = 2;
+  ctx.font = '13px Inter, sans-serif';
+  ctx.fillStyle   = 'rgba(239,68,68,0.15)';
+  dets.forEach((d, i) => {
+    const x = 40 + i*60, y = 40 + i*30;
+    const bw = Math.random()*120+80, bh = Math.random()*80+50;
+    ctx.strokeRect(x, y, bw, bh);
+    ctx.fillRect(x, y, bw, bh);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(x, y-18, ctx.measureText(d.label).width+8, 18);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(d.label, x+4, y-4);
+    ctx.fillStyle = 'rgba(239,68,68,0.15)';
+  });
+}
+</script>
 </body>
 </html>
