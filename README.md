@@ -264,7 +264,7 @@ Strawhats-Defect-Detection-2026/
 
 ## 👥 Team
 
-**Team SafePath | RVCE Hackathon 2026**
+**Team Strawhat-Pirates | RVCE Hackathon 2026**
 
 | Member | Role |
 |--------|------|

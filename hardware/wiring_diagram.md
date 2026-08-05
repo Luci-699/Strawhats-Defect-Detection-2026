@@ -1,5 +1,5 @@
 # 🔌 ESP32 Hardware Reject System & OLED Pinout Diagram
-**Team SafePath | RVCE Hackathon 2026**
+**Team Strawhat-Pirates | RVCE Hackathon 2026**
 
 ---
 

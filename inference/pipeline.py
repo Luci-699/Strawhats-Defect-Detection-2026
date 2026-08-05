@@ -1,7 +1,7 @@
 """
 inference/pipeline.py
 ===================
-RVCE Hackathon 2026 — Team SafePath
+RVCE Hackathon 2026 — Team Strawhat-Pirates
 Integrated Inference Pipeline using MaterialRouter and YOLOv10 Detectors.
 """
 

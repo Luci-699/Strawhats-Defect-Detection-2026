@@ -1,7 +1,7 @@
 """
 api_server.py
 =============
-RVCE Hackathon 2026 — Team SafePath
+RVCE Hackathon 2026 — Team Strawhat-Pirates
 FastAPI backend: live MJPEG stream + WebSocket stats + inference pipeline
 
 Endpoints:
@@ -40,7 +40,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 # ── App ────────────────────────────────────────────────────────────────────────
-app = FastAPI(title="SafePath Inspection API", version="2.0.0")
+app = FastAPI(title="Strawhat-Pirates Inspection API", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -319,7 +319,7 @@ def _test_pattern() -> np.ndarray:
 async def startup():
     global _camera_task
     _camera_task = asyncio.create_task(inference_loop())
-    logger.info("🚀 SafePath Inspection API ready at http://0.0.0.0:8000")
+    logger.info("🚀 Strawhat-Pirates Inspection API ready at http://0.0.0.0:8000")
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────

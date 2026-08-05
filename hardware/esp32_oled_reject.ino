@@ -1,6 +1,6 @@
 /*
  * ESP32 Hardware Reject System + 0.96" OLED Display (SSD1306)
- * RVCE Hackathon 2026 — Team SafePath
+ * RVCE Hackathon 2026 — Team Strawhat-Pirates
  * 
  * Hardware Required:
  * 1. ESP32 Dev Board
@@ -46,7 +46,7 @@ void showIdleScreen() {
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(10, 5);
-  display.println("SAFEPATH INSPECT");
+  display.println("STRAWHAT PIRATES");
   display.drawLine(0, 16, 128, 16, SSD1306_WHITE);
   
   display.setCursor(20, 28);
