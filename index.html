@@ -782,15 +782,8 @@ async function runImageInference(file) {
 /* ─── Live demo ─────────────────────────────────────────────── */
 async function toggleLive() {
   if (liveMode) { stopLive(); return; }
-
-  // First try to connect to API's MJPEG stream
-  const apiOnline = await checkAPI();
-  if (apiOnline) {
-    startAPILive();
-  } else {
-    // Fallback: use browser webcam
-    startWebcamLive();
-  }
+  // Use browser webcam for 100% Iriun Webcam / Mobile Cam compatibility
+  startWebcamLive();
 }
 
 async function checkAPI() {
@@ -886,7 +879,7 @@ function startWebcamPoll() {
         frameCount = 0; fpsTimer = now;
       }
 
-      webcamPollTimer = setTimeout(pollFrame, 800);
+      webcamPollTimer = setTimeout(pollFrame, 250);
     }, 'image/jpeg', 0.85);
   }
   pollFrame();
