@@ -1,146 +1,148 @@
 import torch
 import torch.nn as nn
-from ultralytics import YOLO
+
 
 class YOLOv10Backbone(nn.Module):
-    """Wrapper class for YOLOv10 backbone.
-    
-    Handles:
-    - Forward pass through backbone
-    - Modifying first conv layer for 2-channel input (grayscale + attention map)
-    - ROI feature extraction for detected boxes
-    - Feature map access for fusion module
+    """Wrapper that loads a trained YOLOv10 checkpoint purely as a frozen
+    PyTorch feature extractor — bypasses Ultralytics Trainer entirely to
+    prevent accidental COCO8 fine-tuning on backbone init.
+
+    Feature extraction strategy
+    ---------------------------
+    A forward hook is registered on the deepest SPPF block in the model.
+    After each backbone forward pass the captured feature map is available
+    via ``self.feature_maps[self.target_layer]``.  ROI features are then
+    pooled from this map with ``get_roi_features()``.
     """
-    
-    def __init__(self, pretrained_weights: str = 'yolov10n.pt'):
-        """Initialize YOLOv10 backbone and adapt it for 2-channel input.
-        
-        Parameters
-        ----------
-        pretrained_weights : str, optional
-            Path to pretrained YOLOv10 weights, by default 'yolov10n.pt'
-        """
+
+    def __init__(self, pretrained_weights: str = 'yolov10m.pt'):
         super().__init__()
         import os
-        
-        # Load only the model weights — do NOT trigger YOLO's internal trainer.
-        # We extract model state directly from checkpoint to avoid Ultralytics
-        # auto-launching a 100-epoch fine-tune on coco8 when loading .pt files.
+
+        # ── Load the model weights WITHOUT touching Ultralytics Trainer ────
+        # We load the raw checkpoint and grab ckpt['model'] (a DetectionModel)
+        # directly.  Creating YOLO('yolov10m.pt') here would trigger an
+        # Ultralytics training run on coco8 with default args — avoid that.
         if pretrained_weights.endswith('.pt') and os.path.exists(pretrained_weights):
-            ckpt = torch.load(pretrained_weights, map_location='cpu', weights_only=False)
-            # Ultralytics checkpoint stores the model under 'model' key
+            ckpt = torch.load(pretrained_weights, map_location='cpu',
+                              weights_only=False)
             if isinstance(ckpt, dict) and 'model' in ckpt:
-                self.yolo = YOLO('yolov10m.pt')  # Load clean architecture
-                try:
-                    self.yolo.model.load_state_dict(ckpt['model'].state_dict(), strict=False)
-                except Exception:
-                    pass  # If state dict fails, use clean architecture weights
+                # Standard Ultralytics checkpoint — model is already trained
+                self.model = ckpt['model'].float()
+            elif isinstance(ckpt, nn.Module):
+                # Checkpoint IS the model (rare but possible)
+                self.model = ckpt.float()
             else:
-                self.yolo = YOLO(pretrained_weights)
+                raise ValueError(
+                    f"Unrecognised checkpoint format in {pretrained_weights}. "
+                    "Expected a dict with 'model' key or a bare nn.Module.")
         else:
-            self.yolo = YOLO(pretrained_weights)
-        self.model = self.yolo.model
-        
-        # Modify the first convolutional layer for 2-channel input
-        # Original is likely 3-channel (RGB)
-        first_layer = None
-        for name, module in self.model.named_modules():
+            # Fallback: load a clean yolov10m without running Trainer
+            try:
+                # Use Ultralytics only to get the architecture, then detach
+                from ultralytics import YOLO as _YOLO
+                self.model = _YOLO('yolov10m.pt').model.float()
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Could not load backbone weights from '{pretrained_weights}': {exc}"
+                )
+
+        # ── Adapt first Conv for 2-channel input (grayscale + attention) ───
+        first_conv = None
+        for _name, module in self.model.named_modules():
             if isinstance(module, nn.Conv2d):
-                first_layer = module
+                first_conv = module
                 break
-                
-        if first_layer is not None and first_layer.in_channels == 3:
-            # Create a new conv layer with 2 input channels
-            new_first_layer = nn.Conv2d(
-                in_channels=2, 
-                out_channels=first_layer.out_channels,
-                kernel_size=first_layer.kernel_size,
-                stride=first_layer.stride,
-                padding=first_layer.padding,
-                bias=(first_layer.bias is not None)
+
+        if first_conv is not None and first_conv.in_channels == 3:
+            new_conv = nn.Conv2d(
+                in_channels=2,
+                out_channels=first_conv.out_channels,
+                kernel_size=first_conv.kernel_size,
+                stride=first_conv.stride,
+                padding=first_conv.padding,
+                bias=(first_conv.bias is not None),
             )
-            
-            # Initialize weights: copy weights from first 2 channels or average them
             with torch.no_grad():
-                new_first_layer.weight[:, :2, :, :] = first_layer.weight[:, :2, :, :]
-                if first_layer.bias is not None:
-                    new_first_layer.bias = first_layer.bias
-                    
-            # Replace the layer in the model
-            if hasattr(self.model.model[0], 'conv'):
-                self.model.model[0].conv = new_first_layer
-                
-        # To extract intermediate feature maps, we can use forward hooks
-        self.feature_maps = {}
+                # Copy the first 2 channels of the pretrained weights
+                new_conv.weight.copy_(first_conv.weight[:, :2, :, :])
+                if first_conv.bias is not None:
+                    new_conv.bias = first_conv.bias
+            # Replace in the model graph
+            if hasattr(self.model, 'model') and hasattr(self.model.model[0], 'conv'):
+                self.model.model[0].conv = new_conv
+
+        # ── Register SPPF hook for intermediate features ────────────────────
+        self.feature_maps: dict[str, torch.Tensor] = {}
+        self.target_layer: str | None = None
         self._register_hooks()
-        
+
+    # ──────────────────────────────────────────────────────────────────────────
     def _register_hooks(self):
-        """Register forward hooks to extract intermediate features."""
-        def get_activation(name):
-            def hook(model, input, output):
+        """Attach a forward hook to every SPPF block (last one wins as target)."""
+        def _make_hook(name: str):
+            def hook(_module, _inp, output):
                 self.feature_maps[name] = output
             return hook
-            
-        # Hook into a deep layer for rich semantic features
-        target_layer = None
-        for idx, (name, module) in enumerate(self.model.named_modules()):
+
+        for idx, (_name, module) in enumerate(self.model.named_modules()):
             if module.__class__.__name__ == 'SPPF':
-                module.register_forward_hook(get_activation(f'feat_{idx}'))
-                target_layer = f'feat_{idx}'
-        self.target_layer = target_layer
-                
-    def forward(self, x: torch.Tensor):
-        """Forward pass through the backbone.
-        
+                key = f'feat_{idx}'
+                module.register_forward_hook(_make_hook(key))
+                self.target_layer = key   # keep updating → last SPPF wins
+
+    # ──────────────────────────────────────────────────────────────────────────
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Run the backbone forward pass; feature maps are stored in
+        ``self.feature_maps`` via the registered hooks.
+
         Parameters
         ----------
-        x : torch.Tensor
-            Input tensor of shape (B, 2, H, W).
-            
-        Returns
-        -------
-        list
-            YOLO detections.
+        x : Tensor  shape (B, 2, H, W)
         """
         self.feature_maps = {}
         return self.model(x)
-        
-    def get_roi_features(self, boxes: torch.Tensor, batch_idx: int = 0) -> torch.Tensor:
-        """Extract ROI features for detected boxes from the intermediate feature map.
-        
+
+    # ──────────────────────────────────────────────────────────────────────────
+    def get_roi_features(
+        self,
+        boxes: torch.Tensor,
+        batch_idx: int = 0,
+    ) -> torch.Tensor:
+        """Pool per-box features from the last SPPF feature map.
+
         Parameters
         ----------
-        boxes : torch.Tensor
-            Bounding boxes of shape (N, 4) in format (x1, y1, x2, y2). Expected to be normalized [0, 1].
-        batch_idx : int, optional
-            Batch index to extract from, by default 0
-            
+        boxes : Tensor  shape (N, 4)  normalised (x1, y1, x2, y2) in [0, 1]
+        batch_idx : int  which item in the batch to pool from
+
         Returns
         -------
-        torch.Tensor
-            Extracted features of shape (N, C), where C is feature dimension.
+        Tensor  shape (N, C)
         """
         import torchvision
 
         if not self.feature_maps or self.target_layer not in self.feature_maps:
-            raise RuntimeError("No feature maps extracted. Run forward pass first.")
-            
-        feat_map = self.feature_maps[self.target_layer] # Shape: (B, C, H, W)
-        B, C, H, W = feat_map.shape
-        
+            raise RuntimeError(
+                "No feature maps available — run forward() first.")
+
+        feat = self.feature_maps[self.target_layer]   # (B, C, H, W)
+        _B, C, H, W = feat.shape
+
         if boxes.shape[0] == 0:
-            return torch.empty((0, C), device=feat_map.device)
-            
-        # Scale to feature map dimensions
-        scaled_boxes = boxes.clone()
-        scaled_boxes[:, [0, 2]] *= W
-        scaled_boxes[:, [1, 3]] *= H
-        
-        # Add batch index for roi_align
-        batch_indices = torch.full((boxes.shape[0], 1), batch_idx, device=boxes.device, dtype=boxes.dtype)
-        roi_boxes = torch.cat([batch_indices, scaled_boxes], dim=1)
-        
-        # Use roi_align to pool a 1x1 region (Adaptive Average Pooling equivalent over the box)
-        roi_features = torchvision.ops.roi_align(feat_map, roi_boxes, output_size=(1, 1), spatial_scale=1.0)
-        
-        return roi_features.squeeze(-1).squeeze(-1) # Shape: (N, C)
+            return torch.empty((0, C), device=feat.device)
+
+        scaled = boxes.clone().float()
+        scaled[:, [0, 2]] *= W
+        scaled[:, [1, 3]] *= H
+
+        batch_col = torch.full(
+            (boxes.shape[0], 1), batch_idx,
+            device=boxes.device, dtype=scaled.dtype,
+        )
+        roi_boxes = torch.cat([batch_col, scaled], dim=1)
+
+        pooled = torchvision.ops.roi_align(
+            feat, roi_boxes, output_size=(1, 1), spatial_scale=1.0
+        )
+        return pooled.squeeze(-1).squeeze(-1)   # (N, C)
