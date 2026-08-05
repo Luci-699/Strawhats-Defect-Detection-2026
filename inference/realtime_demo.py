@@ -43,11 +43,12 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 # ─── Constants ────────────────────────────────────────────────────────────────
-MATERIALS     = ['aluminum', 'steel', 'wood']
-MATERIAL_COLORS = {
-    'steel':    (0,  165, 255),   # Orange
-    'aluminum': (255, 200,  0),   # Cyan-Yellow
-    'wood':     (0,  200,  80),   # Green
+# Classifier was trained on 3 classes — aluminum remapped to wood at runtime
+MATERIALS        = ['aluminum', 'steel', 'wood']   # keep for classifier index mapping
+ACTIVE_MATERIALS = ['steel', 'wood']               # only these have trained YOLO models
+MATERIAL_COLORS  = {
+    'steel': (0, 165, 255),   # Orange
+    'wood':  (0, 200,  80),   # Green
 }
 
 # Class label colours by severity (for bounding boxes)
@@ -76,9 +77,8 @@ WOOD_CLASSES = [
 ]
 
 MATERIAL_CLASSES = {
-    'steel':    STEEL_CLASSES,
-    'aluminum': ALUMINUM_CLASSES,
-    'wood':     WOOD_CLASSES,
+    'steel': STEEL_CLASSES,
+    'wood':  WOOD_CLASSES,
 }
 
 # ─── Weight Paths ─────────────────────────────────────────────────────────────
@@ -139,7 +139,7 @@ class MaterialClassifier:
             logger.warning("No classifier weights found — using filename/fallback mode")
 
     def predict(self, frame_bgr: np.ndarray) -> tuple[str, float]:
-        """Returns (material_name, confidence)."""
+        """Returns (material_name, confidence). Aluminum remapped to wood."""
         if self.model is None:
             return 'steel', 0.0   # Safe default
         try:
@@ -149,7 +149,11 @@ class MaterialClassifier:
                 out   = self.model(tensor)
                 probs = torch.softmax(out, dim=1)[0]
                 idx   = int(probs.argmax())
-            return MATERIALS[idx], float(probs[idx])
+            material = MATERIALS[idx]
+            # Aluminum dropped from pipeline — remap to wood (closest surface type)
+            if material == 'aluminum':
+                material = 'wood'
+            return material, float(probs[idx])
         except Exception as e:
             logger.error(f"Classifier error: {e}")
             return 'steel', 0.0
@@ -159,7 +163,7 @@ class MaterialClassifier:
 class DefectDetector:
     def __init__(self):
         self.models: dict[str, YOLO | None] = {}
-        for mat in MATERIALS:
+        for mat in ACTIVE_MATERIALS:   # steel + wood only
             w = find_weight(mat, 'yolo')
             if w:
                 try:

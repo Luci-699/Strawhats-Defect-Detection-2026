@@ -64,7 +64,7 @@ STAGE_CONFIG = {
         "script": "training/train_material_classifier.py",
         "args": [],
         "estimated_minutes": 15,
-        "description": "3-class classifier: Steel vs Aluminum vs Wood",
+        "description": "2-class classifier: Steel vs Wood",
     },
     2: {
         "name": "Steel YOLO v2 (High-Accuracy)",
@@ -74,34 +74,20 @@ STAGE_CONFIG = {
         "description": "YOLOv10m on Unified Steel (15 classes, 150ep, imgsz=800, mixup+copy_paste) - target >85% mAP50",
     },
     3: {
-        "name": "Aluminum YOLO v2 (3k-subset, 100ep)",
-        "script": "training/train_yolo_baseline.py",
-        "args": ["--data", "configs/dataset_aluminum_3k.yaml", "--epochs", "100", "--batch", "4", "--imgsz", "800", "--name", "aluminum", "--lr", "0.001"],
-        "estimated_minutes": 300,
-        "description": "YOLOv10m on Aluminum Defects (10 classes, 3k subset, 100ep, imgsz=800) - target >68% mAP50",
-    },
-    4: {
         "name": "Wood YOLO v2 (3k-subset, 100ep)",
         "script": "training/train_yolo_baseline.py",
         "args": ["--data", "configs/dataset_wood_3k.yaml", "--epochs", "100", "--batch", "4", "--imgsz", "800", "--name", "wood", "--lr", "0.001"],
         "estimated_minutes": 300,
         "description": "YOLOv10m on Wood Defects (10 classes, 3k subset, 100ep, imgsz=800) - target >68% mAP50",
     },
-    5: {
+    4: {
         "name": "Morphology Fusion — Steel",
         "script": "training/train_morphology_fusion.py",
         "args": ["--material", "steel", "--data", "configs/dataset_steel.yaml", "--batch", "8", "--epochs", "100"],
         "estimated_minutes": 480,
         "description": "Cross-attention fusion: Steel YOLO + morphology descriptors (100 epochs)",
     },
-    6: {
-        "name": "Morphology Fusion — Aluminum",
-        "script": "training/train_morphology_fusion.py",
-        "args": ["--material", "aluminum", "--data", "configs/dataset_aluminum_3k.yaml", "--batch", "8", "--epochs", "100"],
-        "estimated_minutes": 300,
-        "description": "Cross-attention fusion: Aluminum YOLO + morphology descriptors (100 epochs)",
-    },
-    7: {
+    5: {
         "name": "Morphology Fusion — Wood",
         "script": "training/train_morphology_fusion.py",
         "args": ["--material", "wood", "--data", "configs/dataset_wood_3k.yaml", "--batch", "8", "--epochs", "100"],
@@ -120,9 +106,9 @@ def print_banner():
 |   ------------------------------------------                 |
 |   Overnight Training Pipeline v1.0                           |
 |                                                              |
-|   Materials: Steel | Aluminum | Wood                         |
+|   Materials: Steel | Wood                           |
 |   Architecture: Material Router -> Material-Specific YOLO    |
-|   Dataset: ~20,800 images across 3 materials                 |
+|   Dataset: ~16,000 images across 2 materials                 |
 |                                                              |
 |   RVCE Hackathon 2026 -- Team SafePath                       |
 |                                                              |
