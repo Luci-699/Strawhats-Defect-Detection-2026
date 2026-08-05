@@ -99,6 +99,7 @@ def _try_load_serial_bridge():
         logger.warning(f"⚠️ Could not load SerialBridge: {e}")
 
 _try_load_serial_bridge()
+_last_hardware_verdict = None
 
 # ── Mock detection (used when pipeline is not ready) ───────────────────────────
 import random
@@ -258,17 +259,21 @@ async def inference_loop():
             result = _mock_detect(frame)
 
         # ── Update counters & hardware trigger ────────────────────────
+        global _last_hardware_verdict
         verdict = result.get("verdict", "IDLE")
         stats["total_scanned"] += 1
         if verdict == "FAIL":
             stats["total_defects"] += len(result.get("detections", []))
             stats["failed"]        += 1
-            if _serial_bridge and _serial_bridge.is_connected():
-                _serial_bridge.send("REJECT")
         elif verdict == "PASS":
             stats["passed"]        += 1
-            if _serial_bridge and _serial_bridge.is_connected():
-                _serial_bridge.send("PASS")
+
+        # Only trigger ESP32 hardware when verdict CHANGES (prevents buzzer loop)
+        if _serial_bridge and _serial_bridge.is_connected():
+            if verdict in ["PASS", "FAIL"] and verdict != _last_hardware_verdict:
+                _last_hardware_verdict = verdict
+                cmd = "REJECT" if verdict == "FAIL" else "PASS"
+                _serial_bridge.send(cmd)
 
         # ── FPS ──────────────────────────────────────────────────────
         frame_count += 1

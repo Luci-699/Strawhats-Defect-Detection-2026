@@ -2,23 +2,12 @@
  * ESP32 Hardware Reject System + 0.96" OLED Display (SSD1306)
  * RVCE Hackathon 2026 — Team Strawhat-Pirates
  * 
- * Hardware Required:
- * 1. ESP32 Dev Board
- * 2. 0.96" I2C OLED Display (SSD1306 128x64)
- * 3. Red LED (GPIO 14) + Green LED (GPIO 27)
- * 4. Active/Passive Buzzer (GPIO 26)
- * 5. SG90 Servo Motor (GPIO 13)
- * 
- * I2C OLED Wiring:
- * - GND -> ESP32 GND
- * - VCC -> ESP32 3.3V or 5V
- * - SCL -> ESP32 GPIO 22
- * - SDA -> ESP32 GPIO 21
- * 
- * Arduino IDE Libraries Required:
- * - Adafruit SSD1306
- * - Adafruit GFX Library
- * - ESP32Servo
+ * Pinout:
+ * - Red LED:   GPIO 14
+ * - Buzzer:    GPIO 26
+ * - Green LED: GPIO 27
+ * - Servo:     GPIO 13
+ * - OLED I2C:  SDA=GPIO 21, SCL=GPIO 22
  */
 
 #include <Wire.h>
@@ -40,6 +29,8 @@ const int SERVO_PIN     = 13;
 
 Servo rejectServo;
 String inputBuffer = "";
+unsigned long buzzerOffTime = 0;
+bool buzzerActive = false;
 
 void showIdleScreen() {
   display.clearDisplay();
@@ -101,8 +92,15 @@ void resetState() {
   digitalWrite(RED_LED_PIN, LOW);
   digitalWrite(GREEN_LED_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
+  buzzerActive = false;
   rejectServo.write(0); // Servo idle position
   showIdleScreen();
+}
+
+void triggerBuzzer(int durationMs) {
+  digitalWrite(BUZZER_PIN, HIGH);
+  buzzerOffTime = millis() + durationMs;
+  buzzerActive = true;
 }
 
 void setup() {
@@ -133,6 +131,12 @@ void setup() {
 }
 
 void loop() {
+  // Auto-silence buzzer after duration (non-blocking)
+  if (buzzerActive && millis() >= buzzerOffTime) {
+    digitalWrite(BUZZER_PIN, LOW);
+    buzzerActive = false;
+  }
+
   while (Serial.available() > 0) {
     char c = Serial.read();
     if (c == '\n' || c == '\r') {
@@ -153,20 +157,17 @@ void processCommand(String cmd) {
   if (cmd == "REJECT") {
     digitalWrite(GREEN_LED_PIN, LOW);
     digitalWrite(RED_LED_PIN, HIGH);
-    digitalWrite(BUZZER_PIN, HIGH);
+    triggerBuzzer(300); // Beep for 300ms then auto-off
     showRejectScreen();
     rejectServo.write(90); // Sweep reject arm 90 degrees
-    delay(500);
-    digitalWrite(BUZZER_PIN, LOW); // Silence buzzer after 500ms
   } 
   else if (cmd == "PASS") {
     digitalWrite(RED_LED_PIN, LOW);
     digitalWrite(GREEN_LED_PIN, HIGH);
+    digitalWrite(BUZZER_PIN, LOW);
+    buzzerActive = false;
     showPassScreen();
-    rejectServo.write(0);
-    delay(1000);
-    digitalWrite(GREEN_LED_PIN, LOW);
-    showIdleScreen();
+    rejectServo.write(0); // Reset servo to 0
   }
   else if (cmd == "RESET") {
     resetState();
