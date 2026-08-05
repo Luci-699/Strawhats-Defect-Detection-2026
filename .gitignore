@@ -63,3 +63,10 @@ data/Wood/
 data/MVTec/
 data/processed_aluminum/
 data/processed_wood/
+
+data_share/
+data_share.zip
+data.zip
+*.zip
+extracted_paper_text.txt
+FRIEND_SETUP.md

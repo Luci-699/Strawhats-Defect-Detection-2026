@@ -63,10 +63,10 @@ Quality control in manufacturing is currently performed **manually by operators*
 
 | Material | Source | Images | Classes |
 |----------|--------|--------|---------|
-| Steel | NEU-DET + Severstal (Kaggle) | ~5,200 | 15 |
-| Aluminum | AMID Dataset (Kaggle) | ~4,700 | 10 |
-| Wood | Wood Defect Dataset (Kaggle) | ~7,400 | 10 |
-| Material Classifier | All 3 combined | ~4,700 | 3 |
+| Steel | NEU-DET + GC10-DET | ~5,200 | 15 |
+| Aluminum | Tianchi/Alibaba (AMID) | ~4,700 | 10 |
+| Wood | Kodytek Benchmark | ~7,400 | 10 |
+| Material Classifier | All 3 combined | ~4,659 | 3 |
 | **Total** | | **~20,800** | **26+** |
 
 ### Steel Defect Classes (15)
@@ -169,15 +169,23 @@ python evaluation/evaluate.py
 ```
 Strawhats-Defect-Detection-2026/
 │
-├── data/                          # Datasets (Kaggle downloads)
-│   ├── processed/steel_unified/   # Steel: 15 classes
-│   ├── processed_aluminum/        # Aluminum: 10 classes
-│   ├── processed/wood_10class/    # Wood: 10 classes
-│   └── material_classifier/       # 3-class routing dataset
+├── configs/                       # Dataset YAML files (Git-tracked)
+│   ├── dataset_steel.yaml         # Steel: 15 classes, 5232 images
+│   ├── dataset_aluminum_3k.yaml   # Aluminum: 10 classes, 3k subset
+│   └── dataset_wood_3k.yaml       # Wood: 10 classes, 3k subset
+│
+├── data/                          # Datasets (gitignored — download separately)
+│   ├── processed/steel_unified/   # Steel: 15 classes, 5232 images
+│   ├── processed_aluminum/        # Aluminum: 10 classes, 4688 images
+│   ├── processed/wood_10class/    # Wood: 10 classes, 7393 images
+│   ├── processed_aluminum_3k/     # Aluminum 3k training subset
+│   ├── processed/wood_3k/         # Wood 3k training subset
+│   └── material_classifier/       # 3-class routing dataset, 4659 images
 │
 ├── models/                        # Neural network modules
 │   ├── yolo_backbone.py           # YOLOv10m feature extractor
 │   ├── cross_attention.py         # CrossAttentionFusion module
+│   ├── material_router.py         # ResNet18 material classifier
 │   └── classification_head.py     # Morphology classifier head
 │
 ├── morphology/                    # Morphological analysis
@@ -195,12 +203,23 @@ Strawhats-Defect-Detection-2026/
 │   └── losses.py                  # MorphologyAwareLoss
 │
 ├── inference/
-│   └── realtime_demo.py           # Live demo with HUD overlay
+│   ├── realtime_demo.py           # Live demo with HUD overlay
+│   ├── detect.py                  # Single image detection
+│   ├── batch_detect.py            # Batch processing
+│   └── api_server.py              # FastAPI WebSocket server
 │
 ├── evaluation/
-│   └── evaluate.py                # mAP50, accuracy, per-class metrics
+│   ├── evaluate.py                # mAP50, accuracy, per-class metrics
+│   ├── ablation.py                # Ablation study runner
+│   └── explainability.py          # Grad-CAM + SHAP visualizations
+│
+├── hardware/
+│   ├── esp32_reject.ino           # ESP32 firmware (Red LED + Buzzer + Servo)
+│   ├── serial_bridge.py           # Python → ESP32 serial bridge
+│   └── wiring_diagram.md          # GPIO pinout diagram
 │
 ├── scripts/                       # Data preparation utilities
+│   ├── create_subset.py           # Stratified subset creation
 │   ├── download_neu_det.py
 │   ├── download_severstal.py
 │   ├── convert_annotations.py
@@ -221,31 +240,33 @@ Strawhats-Defect-Detection-2026/
 
 ## 📊 Training Configuration
 
-| Parameter | Value | Reason |
-|-----------|-------|--------|
-| Model | YOLOv10m | Best speed/accuracy trade-off for 6GB GPU |
-| Image Size | 800×800 | Higher resolution for fine defect detail |
-| Batch Size | 4 | Safe within 6GB VRAM at imgsz=800 |
-| Epochs | 150 (YOLO) / 100 (Fusion) | With patience=30 early stopping |
-| Optimizer | AdamW | Better generalization than SGD |
-| LR Schedule | Cosine Annealing | Smooth convergence |
-| Augmentation | Mosaic + MixUp + Copy-Paste + HSV | Robust to real-world variation |
-| AMP | FP16 Mixed Precision | 1.5-2× faster training |
+| Parameter | Steel | Aluminum / Wood | Reason |
+|-----------|-------|-----------------|--------|
+| Model | YOLOv10m | YOLOv10m | Best speed/accuracy for 6GB GPU |
+| Image Size | 800×800 | 800×800 | Higher resolution for fine defect detail |
+| Batch Size | 4 | 4 | Safe within 6GB VRAM at imgsz=800 |
+| Epochs | **150** | **100** | Steel full dataset; Al/Wood on 3k subset |
+| Dataset | Full (5,232) | 3k subset | Time-constrained parallel training |
+| Optimizer | AdamW | AdamW | Better generalization than SGD |
+| LR Schedule | Cosine Annealing | Cosine Annealing | Smooth convergence |
+| Augmentation | Mosaic + MixUp + Copy-Paste + HSV | Same | Robust to real-world variation |
+| AMP | FP16 Mixed Precision | FP16 Mixed Precision | 1.5-2× faster, half VRAM |
 
 ---
 
 ## 📈 Results
 
-> *Full results available after training completes. See `evaluation/evaluate.py` output.*
+| Model | mAP50 | Status |
+|-------|-------|--------|
+| Material Classifier (ResNet18) | ~97% acc | ✅ Done |
+| Steel YOLO v2 (150ep, 5232 imgs) | *pending eval* | ✅ Training Done |
+| Aluminum YOLO v2 (100ep, 3k subset) | *pending* | 🔄 Training |
+| Wood YOLO v2 (100ep, 3k subset) | *pending* | 🔄 Training |
+| Steel Morphology Fusion | *pending* | ⏳ Queued |
+| Aluminum Morphology Fusion | *pending* | ⏳ Queued |
+| Wood Morphology Fusion | *pending* | ⏳ Queued |
 
-| Model | mAP50 | Val Accuracy |
-|-------|-------|-------------|
-| Material Classifier (ResNet18) | — | ~97% |
-| Steel YOLO (baseline 50ep) | ~73% | — |
-| Steel Morphology Fusion | — | ~73.7% |
-| Steel YOLO v2 (150ep) | *training* | — |
-| Aluminum YOLO v2 (150ep) | *training* | — |
-| Wood YOLO v2 (150ep) | *training* | — |
+> *Full results available after training completes. See `evaluation/evaluate.py` output.*
 
 ---
 
@@ -255,23 +276,25 @@ Strawhats-Defect-Detection-2026/
 
 | Member | Role |
 |--------|------|
-| [Member 1] | Model architecture + training pipeline |
-| [Member 2] | Data preprocessing + augmentation |
-| [Member 3] | Morphology module + fusion |
-| [Member 4] | Demo + evaluation |
+| Faizan | Model architecture + training pipeline |
+| Pulkit | Data preprocessing + augmentation |
+| Chethan | Morphology module + fusion |
+| Rahul | Hardware (ESP32) + demo |
+| Akash | Evaluation + presentation |
 
 ---
 
 ## 🏆 Judging Criteria Coverage
 
-| Criterion | Our Implementation |
-|-----------|-------------------|
-| **Problem Understanding** | Addresses factory QC automation for 3 material types |
-| **Technical Complexity** | YOLOv10m + Morphology Fusion + Cross-Attention — 3-stage pipeline |
-| **Feasibility** | Runs real-time at 15-30 FPS on RTX 4050 |
-| **Functionality** | Detects 26 defect classes across Steel, Aluminum, Wood |
-| **Code Quality** | Modular architecture, docstrings, type hints, config-driven |
-| **Teamwork** | Git history with tracked contributions |
-| **Model Training** | 150-epoch training with augmentation + early stopping |
-| **Output Response** | Live HUD: class label, confidence, FPS, defect count |
-| **Demo** | Webcam demo + physical sample cards as fallback |
+| Criterion | Marks | Our Implementation |
+|-----------|-------|--------------------|
+| **Problem Understanding** | 10 | Factory QC automation for 3 material types, directly mirrors PS-5 |
+| **Technical Complexity** | 10 | YOLOv10m + Morphology Fusion + Cross-Attention — 3-stage pipeline |
+| **Feasibility** | 10 | Runs real-time at 15-30 FPS on RTX 4050 |
+| **Functionality** | 10 | Detects 26 defect classes across Steel, Aluminum, Wood |
+| **Code Quality** | 20 | Modular architecture, docstrings, type hints, config-driven |
+| **Teamwork** | 10 | Git history with tracked contributions across 5 members |
+| **Model Training** | 10 | 150-epoch steel + 100-epoch fusion with augmentation + early stopping |
+| **Output Response** | 10 | Live HUD: class label, confidence, FPS, defect count |
+| **Demo** | 10 | Webcam demo + physical sample cards + ESP32 reject arm |
+| **TOTAL** | **100** | **Target: 85-96/100** |
