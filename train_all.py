@@ -83,16 +83,16 @@ STAGE_CONFIG = {
     4: {
         "name": "Morphology Fusion — Steel",
         "script": "training/train_morphology_fusion.py",
-        "args": ["--material", "steel", "--data", "configs/dataset_steel.yaml", "--batch", "8", "--epochs", "100"],
-        "estimated_minutes": 480,
-        "description": "Cross-attention fusion: Steel YOLO + morphology descriptors (100 epochs)",
+        "args": ["--material", "steel", "--data", "configs/dataset_steel.yaml", "--batch", "8", "--epochs", "20"],
+        "estimated_minutes": 180,
+        "description": "Cross-attention fusion: Steel YOLO + morphology descriptors (20 epochs)",
     },
     5: {
         "name": "Morphology Fusion — Wood",
         "script": "training/train_morphology_fusion.py",
-        "args": ["--material", "wood", "--data", "configs/dataset_wood_3k.yaml", "--batch", "8", "--epochs", "100"],
-        "estimated_minutes": 300,
-        "description": "Cross-attention fusion: Wood YOLO + morphology descriptors (100 epochs)",
+        "args": ["--material", "wood", "--data", "configs/dataset_wood_3k.yaml", "--batch", "8", "--epochs", "20"],
+        "estimated_minutes": 120,
+        "description": "Cross-attention fusion: Wood YOLO + morphology descriptors (20 epochs)",
     },
 }
 
