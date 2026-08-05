@@ -84,6 +84,22 @@ def _try_load_pipeline():
 
 _try_load_pipeline()
 
+# ── Hardware Serial Bridge for ESP32 / Arduino ────────────────────────────────
+_serial_bridge = None
+def _try_load_serial_bridge():
+    global _serial_bridge
+    try:
+        from hardware.serial_bridge import SerialBridge
+        _serial_bridge = SerialBridge(baudrate=115200)
+        if _serial_bridge.is_connected():
+            logger.info("⚡ ESP32 Hardware Reject System connected via Serial!")
+        else:
+            logger.info("ℹ️ ESP32 Hardware Bridge ready (will auto-trigger when USB plugged in)")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not load SerialBridge: {e}")
+
+_try_load_serial_bridge()
+
 # ── Mock detection (used when pipeline is not ready) ───────────────────────────
 import random
 
@@ -237,14 +253,18 @@ async def inference_loop():
         else:
             result = _mock_detect(frame)
 
-        # ── Update counters ──────────────────────────────────────────
+        # ── Update counters & hardware trigger ────────────────────────
         verdict = result.get("verdict", "IDLE")
         stats["total_scanned"] += 1
         if verdict == "FAIL":
             stats["total_defects"] += len(result.get("detections", []))
             stats["failed"]        += 1
+            if _serial_bridge and _serial_bridge.is_connected():
+                _serial_bridge.send("REJECT")
         elif verdict == "PASS":
             stats["passed"]        += 1
+            if _serial_bridge and _serial_bridge.is_connected():
+                _serial_bridge.send("PASS")
 
         # ── FPS ──────────────────────────────────────────────────────
         frame_count += 1
@@ -378,12 +398,17 @@ async def detect_image(image: UploadFile = File(...)) -> Dict[str, Any]:
     else:
         result = _mock_detect(frame)
 
+    verdict = result.get("verdict")
     stats["total_scanned"] += 1
-    if result.get("verdict") == "FAIL":
+    if verdict == "FAIL":
         stats["total_defects"] += len(result.get("detections", []))
         stats["failed"]        += 1
+        if _serial_bridge and _serial_bridge.is_connected():
+            _serial_bridge.send("REJECT")
     else:
         stats["passed"]        += 1
+        if _serial_bridge and _serial_bridge.is_connected():
+            _serial_bridge.send("PASS")
 
     import base64
     annotated = result.get("annotated")

@@ -3,6 +3,7 @@ import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 import numpy as np
+import cv2
 
 # Assuming Ultralytics YOLOv8 is used
 try:
@@ -62,9 +63,14 @@ class MaterialRouter:
             # Send to device if YOLO API supports it, usually handled automatically in ultralytics
         return self.yolo_models[material]
 
-    def classify_material(self, image: Image.Image) -> tuple[str, float]:
+    def classify_material(self, image) -> tuple[str, float]:
         """Returns (material_name, confidence)"""
-        input_tensor = self.transform(image).unsqueeze(0).to(self.device)
+        if isinstance(image, np.ndarray):
+            pil_img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        else:
+            pil_img = image
+            
+        input_tensor = self.transform(pil_img).unsqueeze(0).to(self.device)
         
         with torch.no_grad():
             outputs = self.classifier(input_tensor)

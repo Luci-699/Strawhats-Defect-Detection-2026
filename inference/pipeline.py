@@ -2,7 +2,7 @@
 inference/pipeline.py
 ===================
 RVCE Hackathon 2026 — Team SafePath
-Integrated Inference Pipeline using YOLOv10 Steel & Wood Detectors.
+Integrated Inference Pipeline using MaterialRouter and YOLOv10 Detectors.
 """
 
 import os
@@ -23,6 +23,7 @@ class InferencePipeline:
             self.device = device
             
         self.steel_yolo = None
+        self.router = None
         
         # Load Steel YOLO
         steel_weights = ROOT / 'runs' / 'detect' / 'runs' / 'steel' / 'weights' / 'best.pt'
@@ -36,14 +37,34 @@ class InferencePipeline:
         else:
             print(f"⚠️ Steel weights not found at {steel_weights}")
 
-    def predict(self, frame: np.ndarray, conf_threshold: float = 0.20) -> Dict[str, Any]:
+        # Load Material Router
+        classifier_path = ROOT / 'runs' / 'classifier' / 'best_material_classifier.pth'
+        if classifier_path.exists():
+            try:
+                from models.material_router import MaterialRouter
+                self.router = MaterialRouter(str(classifier_path), {'steel': str(steel_weights)}, device=self.device)
+                print("✅ Material Router loaded successfully!")
+            except Exception as e:
+                print(f"⚠️ Material Router optional fallback: {e}")
+
+    def predict(self, frame: np.ndarray, conf_threshold: float = 0.15) -> Dict[str, Any]:
         """Runs material classification and defect detection on frame."""
         if self.steel_yolo is None:
             raise RuntimeError("Steel YOLO model is not loaded.")
             
         material = "steel"
+        material_conf = 0.98
         
-        # Run YOLO detection with sensitive confidence threshold (0.20)
+        # Predict material if MaterialRouter is available
+        if self.router is not None:
+            try:
+                mat_pred, mat_c = self.router.classify_material(frame)
+                material = mat_pred
+                material_conf = mat_c
+            except Exception:
+                material = "steel"
+        
+        # Run YOLO detection (with sensitive threshold = 0.15 for deep scratches)
         results = self.steel_yolo(frame, conf=conf_threshold, verbose=False)[0]
         
         detections = []
@@ -51,10 +72,10 @@ class InferencePipeline:
         h, w = annotated.shape[:2]
         
         # Overlay Material Badge
-        mat_color = (255, 165, 0)
-        cv2.rectangle(annotated, (8, 8), (140, 36), (0, 0, 0), -1)
-        cv2.rectangle(annotated, (8, 8), (140, 36), mat_color, 1)
-        cv2.putText(annotated, "STEEL", (16, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.6, mat_color, 2)
+        mat_color = (255, 165, 0) if material == 'steel' else (251, 146, 60)
+        cv2.rectangle(annotated, (8, 8), (150, 36), (0, 0, 0), -1)
+        cv2.rectangle(annotated, (8, 8), (150, 36), mat_color, 1)
+        cv2.putText(annotated, material.upper(), (16, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.6, mat_color, 2)
         
         defect_count = 0
         
@@ -75,8 +96,19 @@ class InferencePipeline:
                 
                 label_text = f"{raw_name.upper()} {conf*100:.0f}%"
                 (tw, th), _ = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
-                cv2.rectangle(annotated, (x1, max(0, y1 - th - 8)), (x1 + tw + 8, y1), box_color, -1)
-                cv2.putText(annotated, label_text, (x1 + 4, max(th, y1 - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+                
+                # Draw label (inside box if near top edge, above box otherwise)
+                if y1 < 45:
+                    lbl_bg_top = y1
+                    lbl_bg_bot = y1 + th + 8
+                    txt_y = y1 + th + 2
+                else:
+                    lbl_bg_top = y1 - th - 8
+                    lbl_bg_bot = y1
+                    txt_y = y1 - 4
+                    
+                cv2.rectangle(annotated, (x1, lbl_bg_top), (x1 + tw + 8, lbl_bg_bot), box_color, -1)
+                cv2.putText(annotated, label_text, (x1 + 4, txt_y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
                 
                 detections.append({
                     "class": raw_name,
@@ -103,6 +135,7 @@ class InferencePipeline:
             
         return {
             "material": material,
+            "material_confidence": material_conf,
             "verdict": verdict,
             "confidence": top_conf,
             "top_class": top_class,
@@ -114,6 +147,6 @@ class InferencePipeline:
             "annotated_frame": annotated
         }
 
-    def run(self, frame: np.ndarray, conf_threshold: float = 0.20) -> Dict[str, Any]:
+    def run(self, frame: np.ndarray, conf_threshold: float = 0.15) -> Dict[str, Any]:
         """Alias for predict method."""
         return self.predict(frame, conf_threshold=conf_threshold)

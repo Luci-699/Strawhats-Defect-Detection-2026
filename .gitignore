@@ -32,6 +32,7 @@ data/processed_aluminum_3k/
 demo_samples/steel/
 demo_samples/wood/
 demo_samples/test_split/
+demo_samples/internet_test/
 *.zip
 *.tar.gz
 *.7z
