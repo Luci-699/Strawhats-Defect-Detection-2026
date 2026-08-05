@@ -269,10 +269,12 @@ async def inference_loop():
             stats["passed"]        += 1
 
         # Only trigger ESP32 hardware when verdict CHANGES (prevents buzzer loop)
+        mat_str = str(result.get("material", "STEEL")).upper()
+        n_defects = len(result.get("detections", []))
         if _serial_bridge and _serial_bridge.is_connected():
             if verdict in ["PASS", "FAIL"] and verdict != _last_hardware_verdict:
                 _last_hardware_verdict = verdict
-                cmd = "REJECT" if verdict == "FAIL" else "PASS"
+                cmd = f"REJECT,{mat_str},{n_defects}" if verdict == "FAIL" else f"PASS,{mat_str},0"
                 _serial_bridge.send(cmd)
 
         # ── FPS ──────────────────────────────────────────────────────
@@ -350,12 +352,14 @@ def get_stats():
 @app.post("/hitl_decision")
 def hitl_decision(payload: Dict[str, Any]):
     verdict = payload.get("verdict", "PASS").upper()
-    logger.info(f"👤 Human-in-the-Loop decision received: {verdict}")
+    material = payload.get("material", "STEEL").upper()
+    defects = payload.get("defects", 0)
+    logger.info(f"👤 Human-in-the-Loop decision received: {verdict} for {material} ({defects} defects)")
     if _serial_bridge and _serial_bridge.is_connected():
         if verdict in ["FAIL", "REJECT"]:
-            _serial_bridge.send("REJECT")
+            _serial_bridge.send(f"REJECT,{material},{defects}")
         else:
-            _serial_bridge.send("PASS")
+            _serial_bridge.send(f"PASS,{material},0")
     return {"status": "ok", "verdict": verdict}
 
 
@@ -420,16 +424,18 @@ async def detect_image(image: UploadFile = File(...)) -> Dict[str, Any]:
         result = _mock_detect(frame)
 
     verdict = result.get("verdict")
+    mat_str = str(result.get("material", "STEEL")).upper()
+    n_defects = len(result.get("detections", []))
     stats["total_scanned"] += 1
     if verdict == "FAIL":
-        stats["total_defects"] += len(result.get("detections", []))
+        stats["total_defects"] += n_defects
         stats["failed"]        += 1
         if _serial_bridge and _serial_bridge.is_connected():
-            _serial_bridge.send("REJECT")
+            _serial_bridge.send(f"REJECT,{mat_str},{n_defects}")
     else:
         stats["passed"]        += 1
         if _serial_bridge and _serial_bridge.is_connected():
-            _serial_bridge.send("PASS")
+            _serial_bridge.send(f"PASS,{mat_str},0")
 
     import base64
     annotated = result.get("annotated")

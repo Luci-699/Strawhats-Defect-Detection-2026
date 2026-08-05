@@ -966,7 +966,11 @@ async function humanDecide(verdict) {
       await fetch(`${API}/hitl_decision`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verdict: verdict })
+        body: JSON.stringify({
+          verdict: verdict,
+          material: pendingResult.material || 'STEEL',
+          defects: (pendingResult.detections || []).length
+        })
       });
     } catch(_) {}
     pendingResult = null;

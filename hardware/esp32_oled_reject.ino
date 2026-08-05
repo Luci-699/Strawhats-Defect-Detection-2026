@@ -2,6 +2,9 @@
  * ESP32 Hardware Reject System + 0.96" OLED Display (SSD1306)
  * RVCE Hackathon 2026 — Team Strawhat-Pirates
  * 
+ * Communication: Serial @ 115200 baud
+ * Command format: "REJECT,STEEL,4" or "PASS,STEEL,0" (or simple "REJECT" / "PASS")
+ * 
  * Pinout:
  * - Red LED:   GPIO 14
  * - Buzzer:    GPIO 26
@@ -36,55 +39,61 @@ void showIdleScreen() {
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(10, 5);
-  display.println("STRAWHAT PIRATES");
-  display.drawLine(0, 16, 128, 16, SSD1306_WHITE);
+  display.setCursor(5, 4);
+  display.println("=== STRAWHAT PIRATES ===");
+  display.drawLine(0, 15, 128, 15, SSD1306_WHITE);
   
-  display.setCursor(20, 28);
+  display.setCursor(20, 24);
   display.setTextSize(2);
   display.println("READY");
   
   display.setTextSize(1);
-  display.setCursor(15, 52);
+  display.setCursor(12, 48);
   display.println("Waiting for scan...");
   display.display();
 }
 
-void showPassScreen() {
+void showPassScreen(String material = "STEEL", int defects = 0) {
   display.clearDisplay();
-  display.fillRect(0, 0, 128, 16, SSD1306_WHITE);
-  display.setTextColor(SSD1306_BLACK);
   display.setTextSize(1);
-  display.setCursor(12, 4);
-  display.println("INSPECTION RESULT");
-  
   display.setTextColor(SSD1306_WHITE);
-  display.setTextSize(2);
-  display.setCursor(22, 26);
-  display.println("[ PASS ]");
+  display.setCursor(5, 2);
+  display.println("=== STRAWHAT PIRATES ===");
+  display.drawLine(0, 13, 128, 13, SSD1306_WHITE);
   
-  display.setTextSize(1);
-  display.setCursor(10, 50);
-  display.println("Status: APPROVED");
+  display.setCursor(5, 18);
+  display.print("Material: ");
+  display.println(material);
+  
+  display.setCursor(5, 30);
+  display.print("Defects:  ");
+  display.println(defects);
+  
+  display.setTextSize(2);
+  display.setCursor(30, 44);
+  display.println("PASS");
   display.display();
 }
 
-void showRejectScreen() {
+void showRejectScreen(String material = "STEEL", int defects = 1) {
   display.clearDisplay();
-  display.fillRect(0, 0, 128, 16, SSD1306_WHITE);
-  display.setTextColor(SSD1306_BLACK);
   display.setTextSize(1);
-  display.setCursor(12, 4);
-  display.println("INSPECTION RESULT");
-  
   display.setTextColor(SSD1306_WHITE);
-  display.setTextSize(2);
-  display.setCursor(10, 26);
-  display.println("[REJECT]");
+  display.setCursor(5, 2);
+  display.println("=== STRAWHAT PIRATES ===");
+  display.drawLine(0, 13, 128, 13, SSD1306_WHITE);
   
-  display.setTextSize(1);
-  display.setCursor(5, 50);
-  display.println("DEFECT DETECTED!");
+  display.setCursor(5, 18);
+  display.print("Material: ");
+  display.println(material);
+  
+  display.setCursor(5, 30);
+  display.print("Defects:  ");
+  display.println(defects);
+  
+  display.setTextSize(2);
+  display.setCursor(20, 44);
+  display.println("REJECT!");
   display.display();
 }
 
@@ -154,22 +163,39 @@ void loop() {
 void processCommand(String cmd) {
   cmd.toUpperCase();
   
-  if (cmd == "REJECT") {
+  // Parse command format: "REJECT,STEEL,4" or "PASS,STEEL,0"
+  String action = cmd;
+  String material = "STEEL";
+  int defects = 0;
+  
+  int firstComma = cmd.indexOf(',');
+  if (firstComma != -1) {
+    action = cmd.substring(0, firstComma);
+    int secondComma = cmd.indexOf(',', firstComma + 1);
+    if (secondComma != -1) {
+      material = cmd.substring(firstComma + 1, secondComma);
+      defects = cmd.substring(secondComma + 1).toInt();
+    } else {
+      material = cmd.substring(firstComma + 1);
+    }
+  }
+
+  if (action == "REJECT") {
     digitalWrite(GREEN_LED_PIN, LOW);
     digitalWrite(RED_LED_PIN, HIGH);
-    triggerBuzzer(300); // Beep for 300ms then auto-off
-    showRejectScreen();
+    triggerBuzzer(2000); // Beep for 2 seconds (2000ms) then auto-off
+    showRejectScreen(material, defects);
     rejectServo.write(90); // Sweep reject arm 90 degrees
   } 
-  else if (cmd == "PASS") {
+  else if (action == "PASS") {
     digitalWrite(RED_LED_PIN, LOW);
     digitalWrite(GREEN_LED_PIN, HIGH);
     digitalWrite(BUZZER_PIN, LOW);
     buzzerActive = false;
-    showPassScreen();
+    showPassScreen(material, defects);
     rejectServo.write(0); // Reset servo to 0
   }
-  else if (cmd == "RESET") {
+  else if (action == "RESET") {
     resetState();
   }
 }
