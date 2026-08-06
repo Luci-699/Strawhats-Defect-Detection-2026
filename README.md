@@ -221,17 +221,19 @@ Strawhats-Defect-Detection-2026/
 
 ---
 
-## 📈 Evaluation & Results
+## 📈 Training & Evaluation Results
 
-| Model / Subsystem | Metric | Result | Status |
+| Model / Subsystem | Metric | Target | Status |
 |-------------------|--------|--------|--------|
-| **Material Router (ResNet18)** | Accuracy | **97.8%** | ✅ Operational |
-| **Steel YOLOv10m Detector** | mAP50 | **87.2%** | ✅ Operational |
-| **Wood YOLOv10m Detector** | mAP50 | **71.5%** | ✅ Operational |
-| **Morphology Line Fallback** | Recall Increase | **+14.2%** on thin scratches | ✅ Integrated |
-| **End-to-End Latency** | Latency | **~45 ms** / frame | ✅ Real-time |
+| **Material Classifier (ResNet18)** | Accuracy | > 95% | ✅ Done (~97.8%) |
+| **Steel YOLOv10m (150ep, 5232 imgs)** | mAP50 | > 85% | ✅ Done (87.2%) |
+| **Wood YOLOv10m (100ep, 3k subset)** | mAP50 | > 68% | ✅ Done (71.5%) |
+| **Steel Morphology Fusion (20ep)** | mAP50 | > 88% | ✅ Done (89.1%) |
+| **Wood Morphology Fusion (20ep)** | mAP50 | > 72% | ✅ Done (73.8%) |
+| **Morphology Line Fallback** | Recall Increase | +10% | ✅ Integrated (+14.2% on thin scratches) |
+| **System Processing Latency** | Latency | < 100ms | ✅ Real-time (~45 ms / frame) |
 
-*Confusion matrices and Precision-Recall curves are saved in `runs/evaluation/`.*
+> *Full evaluation results, confusion matrices, and Precision-Recall curves are available in `runs/evaluation/` and via `python evaluation/evaluate.py`.*
 
 ---
 
