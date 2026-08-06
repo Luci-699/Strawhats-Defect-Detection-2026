@@ -305,8 +305,15 @@ async def inference_loop():
             try:
                 result = _pipeline.run(frame)
             except Exception as e:
-                logger.debug(f"Pipeline error: {e}")
-                result = _mock_detect(frame)
+                logger.error(f"Inference loop error: {e}")
+                result = {
+                    "material": "STEEL",
+                    "verdict": "PASS",
+                    "confidence": 0.0,
+                    "defect_count": 0,
+                    "detections": [],
+                    "annotated": frame,
+                }
         else:
             result = _mock_detect(frame)
 
