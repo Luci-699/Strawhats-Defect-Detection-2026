@@ -1208,18 +1208,17 @@
         liveMode = true;
         setStatus("live");
 
-        // Show live camera preview in Q1 and live annotated stream in Q2
+        // Show live camera preview in Q1 (MJPEG from backend)
         showInput("mjpeg", `${API}/video_feed`);
-        showOutput("image", `${API}/video_feed`);
 
-        // Connect WebSocket for live detection stats
+        // Connect WebSocket for stats
         connectWS();
 
         // UI — show Scan Now button
         E.liveBtnTxt.textContent = "Stop Live Demo";
         E.btnLive.classList.add("stop");
         document.getElementById("btn-scan-now").style.display = "";
-        E.procTxt.textContent = "Live inspection active — click Scan Now for single-scan hardware trigger";
+        E.procTxt.textContent = "Live preview — click Scan Now to analyze";
       }
 
       async function startWebcamLive() {
@@ -1340,11 +1339,9 @@
           ws = new WebSocket(`ws://127.0.0.1:8000/ws/live`);
           ws.onmessage = (evt) => {
             const d = JSON.parse(evt.data);
+            // Only update FPS in Live Demo — detection results come from Scan Now click
             if (d.stats?.fps)
               E.fpTag.textContent = d.stats.fps.toFixed(1) + " FPS";
-            if (liveMode && d.material) {
-              renderResultCore(d);
-            }
           };
           ws.onerror = () => {};
           ws.onclose = () => {
