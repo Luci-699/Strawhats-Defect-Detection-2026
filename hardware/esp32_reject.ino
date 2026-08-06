@@ -1,15 +1,15 @@
 /*
- * ESP32 Hardware Reject System Sketch
- * Board: ESP32 Dev Board
+ * ESP32 / Arduino / STM32 Hardware Reject System Sketch
+ * Board: ESP32 Dev Board / Arduino / STM32 (Nucleo/BluePill)
  * 
- * Pinout (matches team diagram):
- * - Red LED:   GPIO 14
- * - Buzzer:    GPIO 26
- * - Green LED: GPIO 27
- * - SG90 Servo Signal: GPIO 13 (5V external supply, shared ground)
+ * Pinout:
+ * - Red LED:   GPIO 14 (Arduino D2)
+ * - Buzzer:    GPIO 26 (Arduino D4)
+ * - Green LED: GPIO 27 (Arduino D3)
+ * - Servo:     GPIO 13 (Arduino D9)
  * 
- * Communication: Serial @ 115200 baud
- * Commands: "REJECT", "PASS", "RESET"
+ * Communication: Serial @ 115200 baud (or 9600 baud)
+ * Protocol: "REJECT", "PASS", "RESET", "STATUS:<MAT>,<COUNT>"
  */
 
 #include <ESP32Servo.h>
@@ -26,7 +26,7 @@ void resetState() {
   digitalWrite(RED_LED_PIN, LOW);
   digitalWrite(GREEN_LED_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
-  rejectServo.write(0); // Idle position
+  rejectServo.write(0); // Servo idle at 0 degrees
 }
 
 void setup() {
@@ -36,16 +36,16 @@ void setup() {
   pinMode(GREEN_LED_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
   
-  // Allow allocation of all timers for ESP32 Servo
+  // ESP32 Servo setup
   ESP32PWM::allocateTimer(0);
   ESP32PWM::allocateTimer(1);
   ESP32PWM::allocateTimer(2);
   ESP32PWM::allocateTimer(3);
-  rejectServo.setPeriodHertz(50);    // Standard 50Hz servo
-  rejectServo.attach(SERVO_PIN, 500, 2400); // SG90 pulse width min/max us
+  rejectServo.setPeriodHertz(50);
+  rejectServo.attach(SERVO_PIN, 1000, 2000); // Standard SG90 pulse width
   
   resetState();
-  Serial.println("ESP32_REJECT_SYSTEM_READY");
+  Serial.println("STATUS:WAITING_FOR_PC");
 }
 
 void loop() {
@@ -65,23 +65,29 @@ void loop() {
 
 void processCommand(String cmd) {
   cmd.toUpperCase();
+  if (cmd.startsWith("STATUS:")) return; // Ignore status info line
   
   if (cmd == "REJECT") {
     digitalWrite(GREEN_LED_PIN, LOW);
     digitalWrite(RED_LED_PIN, HIGH);
     digitalWrite(BUZZER_PIN, HIGH);
     rejectServo.write(90); // Sweep reject arm to 90 degrees
-    delay(500);
-    digitalWrite(BUZZER_PIN, LOW); // Turn off buzzer sound after 500ms
+    delay(500);            // 500ms buzzer pulse
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(1500);           // Hold reject arm & Red LED for 1.5s
+    resetState();          // Auto-reset back to WAITING FOR PC
+    Serial.println("STATUS:WAITING_FOR_PC");
   } 
   else if (cmd == "PASS") {
     digitalWrite(RED_LED_PIN, LOW);
     digitalWrite(GREEN_LED_PIN, HIGH);
-    rejectServo.write(0);
-    delay(1000);
-    digitalWrite(GREEN_LED_PIN, LOW);
+    rejectServo.write(0);  // Ensure arm is at 0 degrees
+    delay(1500);           // Hold Green LED for 1.5s
+    resetState();          // Auto-reset back to WAITING FOR PC
+    Serial.println("STATUS:WAITING_FOR_PC");
   }
   else if (cmd == "RESET") {
     resetState();
+    Serial.println("STATUS:WAITING_FOR_PC");
   }
 }
