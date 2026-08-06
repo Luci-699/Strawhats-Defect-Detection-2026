@@ -615,6 +615,12 @@
           <span id="live-btn-txt">Start Live Demo</span>
         </button>
 
+        <!-- Scan Now (visible only during Live Demo) -->
+        <button class="ctrl-btn btn-feed" id="btn-scan-now" onclick="scanNow()" style="display:none; background: linear-gradient(135deg, #00c853, #00e676);">
+          <span>🔍</span>
+          <span>Scan Now</span>
+        </button>
+
         <!-- Processing indicator -->
         <div class="proc-indicator">
           <div class="spin" id="spinner"></div>
@@ -803,25 +809,24 @@ function startAPILive() {
   liveMode = true;
   setStatus('live');
 
-  // Q1: show MJPEG stream as input
+  // Show live camera preview in Q1 (MJPEG from backend)
   showInput('mjpeg', `${API}/video_feed`);
-
-  // Q2: same stream (the API annotates in-place)
-  showOutput('mjpeg', `${API}/video_feed`);
 
   // Connect WebSocket for stats
   connectWS();
 
-  // UI
+  // UI — show Scan Now button
   E.liveBtnTxt.textContent = 'Stop Live Demo';
   E.btnLive.classList.add('stop');
+  document.getElementById('btn-scan-now').style.display = '';
+  E.procTxt.textContent = 'Live preview — click Scan Now to analyze';
 }
 
 async function startWebcamLive() {
   try {
     liveStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
   } catch(err) {
-    // If browser camera is blocked by OS/device, fall back to backend MJPEG stream
+    // If browser camera is blocked, fall back to backend MJPEG stream
     startAPILive();
     return;
   }
@@ -835,62 +840,75 @@ async function startWebcamLive() {
   // UI
   E.liveBtnTxt.textContent = 'Stop Live Demo';
   E.btnLive.classList.add('stop');
+  document.getElementById('btn-scan-now').style.display = '';
+  E.procTxt.textContent = 'Live preview — click Scan Now to analyze';
+}
 
-  // Poll webcam frames every 1s for inference
-  startWebcamPoll();
+/* Single-scan: capture one frame from live feed and send to /detect */
+async function scanNow() {
+  if (!liveMode) return;
+  const scanBtn = document.getElementById('btn-scan-now');
+  scanBtn.disabled = true;
+  scanBtn.querySelector('span:last-child').textContent = 'Scanning...';
+  setStatus('busy');
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  // Capture frame from either webcam video or MJPEG img
+  const vid = E.inputVideo;
+  const mjpegImg = E.inputImg;
+
+  if (vid.srcObject && vid.readyState >= 2) {
+    canvas.width = vid.videoWidth || 640;
+    canvas.height = vid.videoHeight || 480;
+    ctx.drawImage(vid, 0, 0);
+  } else if (mjpegImg.src && mjpegImg.style.display !== 'none') {
+    // Capture from MJPEG img element (backend camera stream)
+    canvas.width = mjpegImg.naturalWidth || 640;
+    canvas.height = mjpegImg.naturalHeight || 480;
+    ctx.drawImage(mjpegImg, 0, 0);
+  } else {
+    scanBtn.disabled = false;
+    scanBtn.querySelector('span:last-child').textContent = 'Scan Now';
+    setStatus('live');
+    return;
+  }
+
+  canvas.toBlob(async blob => {
+    if (!blob) { resetScanBtn(); return; }
+    let result = null;
+    try {
+      const fd = new FormData();
+      fd.append('image', blob, 'live_scan.jpg');
+      const r = await fetch(`${API}/detect`, { method: 'POST', body: fd,
+        signal: AbortSignal.timeout(5000) });
+      if (r.ok) result = await r.json();
+    } catch(_) {}
+    if (!result) result = mockResult('live_scan');
+
+    // Show annotated output in Q2
+    if (result.output_image_b64) {
+      showOutput('image', 'data:image/jpeg;base64,' + result.output_image_b64);
+    } else {
+      showOutput('image', canvas.toDataURL('image/jpeg', 0.85));
+    }
+    renderResult(result);
+
+    // Reset scan button
+    resetScanBtn();
+  }, 'image/jpeg', 0.90);
+}
+
+function resetScanBtn() {
+  const scanBtn = document.getElementById('btn-scan-now');
+  scanBtn.disabled = false;
+  scanBtn.querySelector('span:last-child').textContent = 'Scan Now';
+  setStatus('live');
+  E.procTxt.textContent = 'Scan complete — click Scan Now again';
 }
 
 let webcamPollTimer = null;
-function startWebcamPoll() {
-  const canvas = document.createElement('canvas');
-  const ctx    = canvas.getContext('2d');
-
-  async function pollFrame() {
-    if (!liveMode) return;
-    const vid = E.inputVideo;
-    if (vid.readyState < 2) { webcamPollTimer = setTimeout(pollFrame, 500); return; }
-
-    canvas.width  = vid.videoWidth  || 640;
-    canvas.height = vid.videoHeight || 480;
-    ctx.drawImage(vid, 0, 0);
-
-    canvas.toBlob(async blob => {
-      if (!blob) return;
-      let result = null;
-      try {
-        const fd = new FormData();
-        fd.append('image', blob, 'frame.jpg');
-        const r = await fetch(`${API}/detect`, { method:'POST', body:fd,
-          signal: AbortSignal.timeout(3000) });
-        if (r.ok) result = await r.json();
-      } catch(_) {}
-      if (!result) result = mockResult('webcam_frame');
-
-      // Show annotated output in Q2
-      if (result.output_image_b64) {
-        showOutput('image', 'data:image/jpeg;base64,' + result.output_image_b64);
-      } else {
-        // Draw mock bounding box on canvas and show in Q2
-        if (result.verdict === 'FAIL' && result.detections?.length) {
-          drawMockBoxes(canvas, ctx, result.detections);
-        }
-        showOutput('image', canvas.toDataURL('image/jpeg', 0.85));
-      }
-      renderResult(result);
-
-      // FPS
-      frameCount++;
-      const now = performance.now();
-      if (now - fpsTimer >= 1000) {
-        E.fpTag.textContent = (frameCount / ((now - fpsTimer)/1000)).toFixed(1) + ' FPS';
-        frameCount = 0; fpsTimer = now;
-      }
-
-      webcamPollTimer = setTimeout(pollFrame, 250);
-    }, 'image/jpeg', 0.85);
-  }
-  pollFrame();
-}
 
 function stopLive() {
   liveMode = false;
@@ -910,6 +928,7 @@ function stopLive() {
   E.liveBtnTxt.textContent = 'Start Live Demo';
   E.btnLive.classList.remove('stop');
   E.scanLine.classList.remove('active');
+  document.getElementById('btn-scan-now').style.display = 'none';
   setStatus('idle');
 }
 

@@ -64,7 +64,7 @@ class InferencePipeline:
             except Exception as e:
                 print(f"⚠️ Material Router optional fallback: {e}")
 
-    def predict(self, frame: np.ndarray, conf_threshold: float = 0.15) -> Dict[str, Any]:
+    def predict(self, frame: np.ndarray, conf_threshold: float = 0.10) -> Dict[str, Any]:
         """Runs material classification and defect detection on frame."""
         if self.steel_yolo is None and self.wood_yolo is None:
             raise RuntimeError("No YOLO models loaded.")
@@ -163,6 +163,6 @@ class InferencePipeline:
             "annotated_frame": annotated
         }
 
-    def run(self, frame: np.ndarray, conf_threshold: float = 0.15) -> Dict[str, Any]:
+    def run(self, frame: np.ndarray, conf_threshold: float = 0.10) -> Dict[str, Any]:
         """Alias for predict method."""
         return self.predict(frame, conf_threshold=conf_threshold)
