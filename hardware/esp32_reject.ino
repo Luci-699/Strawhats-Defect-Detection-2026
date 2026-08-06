@@ -1,32 +1,154 @@
 /*
- * ESP32 / Arduino / STM32 Hardware Reject System Sketch
- * Board: ESP32 Dev Board / Arduino / STM32 (Nucleo/BluePill)
+ * ESP32 Hardware Reject System with 0.96" SSD1306 OLED Display
+ * Board: ESP32 Dev Board
  * 
  * Pinout:
- * - Red LED:   GPIO 14 (Arduino D2)
- * - Buzzer:    GPIO 26 (Arduino D4)
- * - Green LED: GPIO 27 (Arduino D3)
- * - Servo:     GPIO 13 (Arduino D9)
+ * - OLED SDA:          GPIO 21 (I2C)
+ * - OLED SCL:          GPIO 22 (I2C)
+ * - Servo Signal:      GPIO 13 (or GPIO 27)
+ * - Red LED / REJECT:  GPIO 14 (or GPIO 4)
+ * - Buzzer:            GPIO 26 (or GPIO 32)
+ * - Green LED / PASS:  GPIO 27 (or GPIO 2)
  * 
- * Communication: Serial @ 115200 baud (or 9600 baud)
- * Protocol: "REJECT", "PASS", "RESET", "STATUS:<MAT>,<COUNT>"
+ * Communication: Serial @ 115200 baud
+ * Protocol: "REJECT", "PASS", "RESET", "STATUS:<MATERIAL>,<DEFECT_COUNT>"
  */
 
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include <ESP32Servo.h>
 
+// ── Pin Definitions ─────────────────────────────────────────────
 const int RED_LED_PIN   = 14;
 const int BUZZER_PIN    = 26;
 const int GREEN_LED_PIN = 27;
 const int SERVO_PIN     = 13;
 
+// ── OLED Display Config ────────────────────────────────────────
+#define SCREEN_WIDTH    128
+#define SCREEN_HEIGHT   64
+#define OLED_RESET      -1
+#define OLED_ADDR       0x3C
+
+#define REJECT_HOLD_MS  2500   // Auto-reset back to initial state after 2.5s
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 Servo rejectServo;
+
+String currentMaterial = "READY";
+int    currentDefectCount = 0;
+bool   isRejected = false;
+bool   hasOled = false;
+unsigned long rejectStartTime = 0;
 String inputBuffer = "";
 
+void displayHeader() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println(F("=== STRAWHAT PIRATES ==="));
+}
+
+void displayBoot() {
+  if (!hasOled) return;
+  displayHeader();
+  display.setCursor(10, 18);
+  display.println(F("Crack Inspector v2.0"));
+  display.setCursor(10, 34);
+  display.println(F("System Ready"));
+  display.setCursor(10, 48);
+  display.println(F("Waiting for PC..."));
+  display.display();
+}
+
+void displayStatus(const char* verdict, uint16_t color = SSD1306_WHITE) {
+  if (!hasOled) return;
+  displayHeader();
+  display.setCursor(0, 16);
+  display.print(F("Mat: "));
+  display.println(currentMaterial);
+  display.setCursor(0, 28);
+  display.print(F("Defects: "));
+  display.println(currentDefectCount);
+  
+  display.setTextSize(2);
+  display.setCursor(0, 44);
+  display.println(verdict);
+  display.display();
+}
+
 void resetState() {
+  isRejected = false;
+  currentMaterial = "READY";
+  currentDefectCount = 0;
+  
   digitalWrite(RED_LED_PIN, LOW);
   digitalWrite(GREEN_LED_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
-  rejectServo.write(0); // Servo idle at 0 degrees
+  rejectServo.write(0); // Idle position
+  
+  displayBoot();
+}
+
+void fireReject() {
+  isRejected = true;
+  rejectStartTime = millis();
+
+  digitalWrite(GREEN_LED_PIN, LOW);
+  digitalWrite(RED_LED_PIN, HIGH);
+  digitalWrite(BUZZER_PIN, HIGH);
+  rejectServo.write(90); // Sweep reject arm to 90 degrees
+  displayStatus("REJECT!");
+  
+  delay(500);
+  digitalWrite(BUZZER_PIN, LOW); // Turn off buzzer sound after 500ms
+}
+
+void firePass() {
+  isRejected = false;
+  digitalWrite(RED_LED_PIN, LOW);
+  digitalWrite(GREEN_LED_PIN, HIGH);
+  rejectServo.write(0); // Arm stays at 0 degrees
+  displayStatus("PASS");
+  
+  delay(1500);
+  resetState();
+}
+
+void parseStatusCommand(String data) {
+  int colonIdx = data.indexOf(':');
+  if (colonIdx < 0) return;
+
+  String payload = data.substring(colonIdx + 1);
+  int commaIdx = payload.indexOf(',');
+  if (commaIdx >= 0) {
+    currentMaterial = payload.substring(0, commaIdx);
+    currentDefectCount = payload.substring(commaIdx + 1).toInt();
+  } else {
+    currentMaterial = payload;
+  }
+  displayStatus(isRejected ? "REJECT!" : (currentDefectCount > 0 ? "REJECT!" : "PASS"));
+}
+
+void processCommand(String cmd) {
+  cmd.trim();
+  String cmdUpper = cmd;
+  cmdUpper.toUpperCase();
+
+  if (cmdUpper == "REJECT") {
+    fireReject();
+  }
+  else if (cmdUpper == "PASS") {
+    firePass();
+  }
+  else if (cmdUpper.startsWith("STATUS:")) {
+    parseStatusCommand(cmd);
+  }
+  else if (cmdUpper == "RESET") {
+    resetState();
+  }
 }
 
 void setup() {
@@ -44,8 +166,18 @@ void setup() {
   rejectServo.setPeriodHertz(50);
   rejectServo.attach(SERVO_PIN, 1000, 2000); // Standard SG90 pulse width
   
+  // Wire I2C OLED setup
+  Wire.begin(21, 22); // SDA = 21, SCL = 22
+  if (display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
+    hasOled = true;
+    displayBoot();
+  } else {
+    hasOled = false;
+    Serial.println("WARN:OLED_NOT_FOUND");
+  }
+  
   resetState();
-  Serial.println("STATUS:WAITING_FOR_PC");
+  Serial.println("STATUS:READY");
 }
 
 void loop() {
@@ -61,33 +193,9 @@ void loop() {
       inputBuffer += c;
     }
   }
-}
 
-void processCommand(String cmd) {
-  cmd.toUpperCase();
-  if (cmd.startsWith("STATUS:")) return; // Ignore status info line
-  
-  if (cmd == "REJECT") {
-    digitalWrite(GREEN_LED_PIN, LOW);
-    digitalWrite(RED_LED_PIN, HIGH);
-    digitalWrite(BUZZER_PIN, HIGH);
-    rejectServo.write(90); // Sweep reject arm to 90 degrees
-    delay(500);            // 500ms buzzer pulse
-    digitalWrite(BUZZER_PIN, LOW);
-    delay(1500);           // Hold reject arm & Red LED for 1.5s
-    resetState();          // Auto-reset back to WAITING FOR PC
-    Serial.println("STATUS:WAITING_FOR_PC");
-  } 
-  else if (cmd == "PASS") {
-    digitalWrite(RED_LED_PIN, LOW);
-    digitalWrite(GREEN_LED_PIN, HIGH);
-    rejectServo.write(0);  // Ensure arm is at 0 degrees
-    delay(1500);           // Hold Green LED for 1.5s
-    resetState();          // Auto-reset back to WAITING FOR PC
-    Serial.println("STATUS:WAITING_FOR_PC");
-  }
-  else if (cmd == "RESET") {
+  // Auto-reset after REJECT_HOLD_MS (2.5 seconds) back to initial WAITING FOR PC state
+  if (isRejected && (millis() - rejectStartTime > REJECT_HOLD_MS)) {
     resetState();
-    Serial.println("STATUS:WAITING_FOR_PC");
   }
 }
