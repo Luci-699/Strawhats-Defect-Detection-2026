@@ -106,9 +106,11 @@ def _send_esp32_command(material: str, defects: int, verdict: str):
     """Sends hardware actuation commands to STM32 / ESP32 / Arduino microcontrollers."""
     if _serial_bridge and _serial_bridge.is_connected():
         mat = str(material).upper()
-        is_reject = str(verdict).upper() in ["FAIL", "REJECT"]
+        # Guarantee REJECT if defects > 0 or verdict is FAIL/REJECT
+        is_reject = (defects > 0) or (str(verdict).upper() in ["FAIL", "REJECT"])
         cmd = "REJECT" if is_reject else "PASS"
         
+        logger.info(f"⚡ Hardware trigger: {cmd} (defects={defects}, verdict={verdict})")
         # Send primary hardware command (REJECT or PASS) to trigger LEDs, Buzzer & Servo
         _serial_bridge.send(cmd)
         time.sleep(0.05)
@@ -399,6 +401,20 @@ def hitl_decision(payload: Dict[str, Any]):
     logger.info(f"👤 Human-in-the-Loop decision received: {verdict} for {material} ({defects} defects)")
     _send_esp32_command(material, defects, verdict)
     return {"status": "ok", "verdict": verdict}
+
+
+@app.get("/hardware/trigger")
+@app.post("/hardware/trigger")
+def hardware_trigger(cmd: str = "REJECT"):
+    """Direct manual hardware trigger endpoint (REJECT, PASS, RESET)."""
+    clean_cmd = cmd.strip().upper()
+    if _serial_bridge and _serial_bridge.is_connected():
+        _serial_bridge.send(clean_cmd)
+        logger.info(f"🕹️ Manual hardware command sent: {clean_cmd}")
+        return {"status": "ok", "command_sent": clean_cmd, "hardware_connected": True}
+    else:
+        logger.warning(f"⚠️ Manual hardware command failed (not connected): {clean_cmd}")
+        return {"status": "error", "message": "Hardware not connected via Serial", "command_sent": clean_cmd}
 
 
 @app.get("/video_feed")
