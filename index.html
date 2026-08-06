@@ -908,13 +908,7 @@ function connectWS() {
     ws = new WebSocket(`ws://127.0.0.1:8000/ws/live`);
     ws.onmessage = evt => {
       const d = JSON.parse(evt.data);
-      renderResult({
-        material:   d.material,
-        verdict:    d.verdict,
-        confidence: d.confidence,
-        detections: (d.detections||[]).map(x=>({label:x.class||x.label, conf:x.conf})),
-        stats:      d.stats,
-      });
+      // Only update FPS in Live Demo — detection results come from Scan Now click
       if (d.stats?.fps) E.fpTag.textContent = d.stats.fps.toFixed(1) + ' FPS';
     };
     ws.onerror = () => {};
