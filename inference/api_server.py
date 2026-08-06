@@ -99,14 +99,21 @@ def _try_load_serial_bridge():
         logger.warning(f"⚠️ Could not load SerialBridge: {e}")
 
 _try_load_serial_bridge()
-_last_hardware_verdict = None
+_last_serial_send_time = 0
 
-def _send_esp32_command(material: str, defects: int, verdict: str):
+def _send_esp32_command(material: str, defects: int, verdict: str, force: bool = False):
     """Sends exact protocol commands to Pulkit's ESP32 sketch."""
+    global _last_serial_send_time
+    now = time.time()
+    if not force and (now - _last_serial_send_time < 1.2):
+        return
+    _last_serial_send_time = now
+
     if _serial_bridge and _serial_bridge.is_connected():
         mat = str(material).upper()
         # 1. Update OLED screen status: e.g. STATUS:STEEL,4
         _serial_bridge.send(f"STATUS:{mat},{defects}")
+        time.sleep(0.02)
         # 2. Trigger hardware actuators: REJECT or PASS
         if str(verdict).upper() in ["FAIL", "REJECT"]:
             _serial_bridge.send("REJECT")
@@ -311,9 +318,8 @@ async def inference_loop():
         elif verdict == "PASS":
             stats["passed"]        += 1
 
-        # Trigger ESP32 hardware live during demo when verdict CHANGES
-        if verdict in ["PASS", "FAIL"] and verdict != _last_hardware_verdict:
-            _last_hardware_verdict = verdict
+        # Trigger ESP32 hardware live during demo
+        if verdict in ["PASS", "FAIL"]:
             _send_esp32_command(mat, n_defects, verdict)
 
         # ── FPS ──────────────────────────────────────────────────────
@@ -468,8 +474,8 @@ async def detect_image(image: UploadFile = File(...)) -> Dict[str, Any]:
     else:
         stats["passed"]        += 1
 
-    # Trigger ESP32 serial update
-    _send_esp32_command(mat, n_defects, verdict)
+    # Trigger ESP32 serial update forcibly on Feed Image
+    _send_esp32_command(mat, n_defects, verdict, force=True)
 
     import base64
     annotated = result.get("annotated")

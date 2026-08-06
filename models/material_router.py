@@ -73,6 +73,14 @@ class MaterialRouter:
             if specular_ratio > 0.02:
                 return 'steel', 0.95
 
+            # 2. Organic Wood HSV warm color check:
+            # Wood features warm brown/yellow hues (Hue 3-50) & saturation (>18)
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+            avg_hue = float(np.mean(hsv[:, :, 0]))
+            avg_sat = float(np.mean(hsv[:, :, 1]))
+            if 3.0 <= avg_hue <= 50.0 and avg_sat > 18.0:
+                return 'wood', 0.96
+
             pil_img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         else:
             pil_img = image
