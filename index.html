@@ -844,7 +844,7 @@ async function startWebcamLive() {
   E.procTxt.textContent = 'Live preview — click Scan Now to analyze';
 }
 
-/* Single-scan: capture one frame from live feed and send to /detect */
+/* Single-scan: call backend /scan to capture + analyze current camera frame */
 async function scanNow() {
   if (!liveMode) return;
   const scanBtn = document.getElementById('btn-scan-now');
@@ -852,52 +852,22 @@ async function scanNow() {
   scanBtn.querySelector('span:last-child').textContent = 'Scanning...';
   setStatus('busy');
 
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
+  let result = null;
+  try {
+    const r = await fetch(`${API}/scan`, { signal: AbortSignal.timeout(5000) });
+    if (r.ok) result = await r.json();
+  } catch(_) {}
 
-  // Capture frame from either webcam video or MJPEG img
-  const vid = E.inputVideo;
-  const mjpegImg = E.inputImg;
-
-  if (vid.srcObject && vid.readyState >= 2) {
-    canvas.width = vid.videoWidth || 640;
-    canvas.height = vid.videoHeight || 480;
-    ctx.drawImage(vid, 0, 0);
-  } else if (mjpegImg.src && mjpegImg.style.display !== 'none') {
-    // Capture from MJPEG img element (backend camera stream)
-    canvas.width = mjpegImg.naturalWidth || 640;
-    canvas.height = mjpegImg.naturalHeight || 480;
-    ctx.drawImage(mjpegImg, 0, 0);
-  } else {
-    scanBtn.disabled = false;
-    scanBtn.querySelector('span:last-child').textContent = 'Scan Now';
-    setStatus('live');
-    return;
+  if (!result || result.error) {
+    result = result || mockResult('live_scan');
   }
 
-  canvas.toBlob(async blob => {
-    if (!blob) { resetScanBtn(); return; }
-    let result = null;
-    try {
-      const fd = new FormData();
-      fd.append('image', blob, 'live_scan.jpg');
-      const r = await fetch(`${API}/detect`, { method: 'POST', body: fd,
-        signal: AbortSignal.timeout(5000) });
-      if (r.ok) result = await r.json();
-    } catch(_) {}
-    if (!result) result = mockResult('live_scan');
-
-    // Show annotated output in Q2
-    if (result.output_image_b64) {
-      showOutput('image', 'data:image/jpeg;base64,' + result.output_image_b64);
-    } else {
-      showOutput('image', canvas.toDataURL('image/jpeg', 0.85));
-    }
-    renderResult(result);
-
-    // Reset scan button
-    resetScanBtn();
-  }, 'image/jpeg', 0.90);
+  // Show annotated output in Q2
+  if (result.output_image_b64) {
+    showOutput('image', 'data:image/jpeg;base64,' + result.output_image_b64);
+  }
+  renderResult(result);
+  resetScanBtn();
 }
 
 function resetScanBtn() {

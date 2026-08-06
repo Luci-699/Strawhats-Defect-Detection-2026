@@ -60,6 +60,7 @@ stats: Dict[str, Any] = {
 # Latest frame data (written by inference loop, read by WebSocket/MJPEG)
 current_frame: Optional[bytes] = None          # JPEG bytes of annotated frame
 current_live:  Dict[str, Any]  = {}            # latest detection result
+_latest_raw_frame: Optional[np.ndarray] = None  # raw BGR frame for /scan endpoint
 
 # Connected WebSocket clients
 ws_clients: List[WebSocket] = []
@@ -289,6 +290,10 @@ async def inference_loop():
         else:
             frame = _test_pattern()
 
+        # Store raw frame for /scan endpoint
+        global _latest_raw_frame
+        _latest_raw_frame = frame.copy()
+
         # ── Run inference ────────────────────────────────────────────
         if _pipeline_loaded and _pipeline is not None:
             try:
@@ -479,6 +484,48 @@ async def detect_image(image: UploadFile = File(...)) -> Dict[str, Any]:
 
     return {
         "filename":         image.filename,
+        "material":         result.get("material"),
+        "verdict":          result.get("verdict"),
+        "confidence":       result.get("confidence"),
+        "detections":       result.get("detections", []),
+        "morphology":       result.get("morphology"),
+        "output_image_b64": output_image_b64,
+    }
+
+@app.get("/scan")
+async def scan_live() -> Dict[str, Any]:
+    """Capture current camera frame, run inference, trigger ESP32. Used by Scan Now button."""
+    global _latest_raw_frame
+    if _latest_raw_frame is None:
+        return {"error": "No camera frame available"}
+
+    frame = _latest_raw_frame.copy()
+
+    if _pipeline_loaded and _pipeline:
+        try:
+            result = _pipeline.run(frame)
+        except Exception:
+            result = _mock_detect(frame)
+    else:
+        result = _mock_detect(frame)
+
+    verdict = result.get("verdict")
+    mat = str(result.get("material", "STEEL"))
+    n_defects = len(result.get("detections", []))
+
+    # Trigger ESP32 (one-shot from user click)
+    _send_esp32_command(mat, n_defects, verdict)
+
+    import base64
+    annotated = result.get("annotated")
+    output_image_b64 = None
+    if annotated is not None:
+        ok, buf = cv2.imencode('.jpg', annotated, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        if ok:
+            output_image_b64 = base64.b64encode(buf.tobytes()).decode('utf-8')
+
+    return {
+        "filename":         "live_scan",
         "material":         result.get("material"),
         "verdict":          result.get("verdict"),
         "confidence":       result.get("confidence"),
