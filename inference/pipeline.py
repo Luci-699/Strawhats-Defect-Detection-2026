@@ -252,10 +252,10 @@ class InferencePipeline:
             edges = cv2.Canny(blurred, low_t, high_t)
             
             # Probabilistic Hough Line Transform
-            # minLineLength: lines must be at least 8% of image width
-            min_len = int(w * 0.08)
-            lines = cv2.HoughLinesP(edges, rho=1, theta=np.pi/180, threshold=40,
-                                    minLineLength=min_len, maxLineGap=15)
+            # minLineLength: lines must be at least 5% of image width
+            min_len = int(w * 0.05)
+            lines = cv2.HoughLinesP(edges, rho=1, theta=np.pi/180, threshold=30,
+                                    minLineLength=min_len, maxLineGap=20)
             
             if lines is None or len(lines) == 0:
                 return []
@@ -311,10 +311,9 @@ class InferencePipeline:
                 box_h = by2 - by1
                 aspect = max(box_w, box_h) / max(min(box_w, box_h), 1)
                 
-                # Scratches are elongated (aspect > 2.5) and cover meaningful area
-                if aspect >= 2.5 and total_len >= min_len * 1.5:
-                    # Confidence based on line length relative to image
-                    conf = min(0.85, 0.3 + (total_len / max(w, h)) * 0.8)
+                # Scratches are elongated (aspect >= 1.8)
+                if aspect >= 1.8 and total_len >= min_len * 1.0:
+                    conf = min(0.85, 0.35 + (total_len / max(w, h)) * 0.8)
                     scratches.append({
                         "class": "scratch",
                         "conf": round(conf, 3),
