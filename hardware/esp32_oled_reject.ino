@@ -140,7 +140,8 @@ void parseStatusCommand(String data) {
   currentMaterial = payload.substring(0, commaIdx);
   currentDefectCount = payload.substring(commaIdx + 1).toInt();
 
-  displayStatus(isRejected ? "REJECT!" : "PASS");
+  bool defectFound = (currentDefectCount > 0) || isRejected;
+  displayStatus(defectFound ? "REJECT!" : "PASS");
   Serial.print("ACK:STATUS:");
   Serial.print(currentMaterial);
   Serial.print(",");
