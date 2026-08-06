@@ -75,3 +75,8 @@ data.zip
 *.zip
 extracted_paper_text.txt
 FRIEND_SETUP.md
+
+
+*.jpg
+*.jpeg
+demo_samples/
