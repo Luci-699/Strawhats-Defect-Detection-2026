@@ -277,10 +277,10 @@ async def inference_loop():
 
     while True:
         # ── Grab frame ──────────────────────────────────────────────
+        is_no_cam = False
         if cap is not None:
             ret, frame = cap.read()
             if not ret or frame is None:
-                # Attempt to re-open camera 1 / 0
                 for idx in [1, 0, 2]:
                     c = cv2.VideoCapture(idx)
                     if c.isOpened():
@@ -292,8 +292,10 @@ async def inference_loop():
                             break
                         c.release()
                 if not ret or frame is None:
+                    is_no_cam = True
                     frame = _test_pattern()
         else:
+            is_no_cam = True
             frame = _test_pattern()
 
         # Store raw frame for /scan endpoint
@@ -301,7 +303,16 @@ async def inference_loop():
         _latest_raw_frame = frame.copy()
 
         # ── Run inference ────────────────────────────────────────────
-        if _pipeline_loaded and _pipeline is not None:
+        if is_no_cam:
+            result = {
+                "material": "STEEL",
+                "verdict": "PASS",
+                "confidence": 0.0,
+                "defect_count": 0,
+                "detections": [],
+                "annotated": frame,
+            }
+        elif _pipeline_loaded and _pipeline is not None:
             try:
                 result = _pipeline.run(frame)
             except Exception as e:
