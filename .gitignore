@@ -80,3 +80,8 @@ FRIEND_SETUP.md
 *.jpg
 *.jpeg
 demo_samples/
+
+*.jpg
+*.jpeg
+datasets/coco8/images/
+demo/print_cards/
